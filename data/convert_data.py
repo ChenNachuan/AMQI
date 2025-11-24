@@ -30,5 +30,4 @@ def convert_dta_to_parquet(input_dir: Path, output_dir: Path):
 
 if __name__ == "__main__":
     base_dir = Path(__file__).parent
-    data_dir = base_dir / "data"
-    convert_dta_to_parquet(data_dir, data_dir)
+    convert_dta_to_parquet(base_dir, base_dir)

@@ -7,7 +7,7 @@ import pandas as pd
 project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
-from data_loader import load_stock_data
+from data.data_loader import load_stock_data
 from factor_library.momentum import MomentumFactor
 from backtest_engine.backtester import Backtester
 from model_assembly.linear_model import LinearModel

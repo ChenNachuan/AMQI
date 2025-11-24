@@ -46,7 +46,7 @@
 在分析脚本中加载处理后的数据：
 
 ```python
-from data_loader import load_stock_data
+from data.data_loader import load_stock_data
 
 df = load_stock_data()
 print(df.head())

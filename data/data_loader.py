@@ -14,7 +14,7 @@ def load_stock_data(data_dir: Path = None, filename: str = "csmar_0110sample.par
         pd.DataFrame: The loaded data.
     """
     if data_dir is None:
-        data_dir = Path(__file__).parent / "data"
+        data_dir = Path(__file__).parent
     
     file_path = data_dir / filename
     
