@@ -2,3 +2,5 @@ pandas
 pyarrow
 numpy
 statsmodels
+tushare
+python-dotenv
