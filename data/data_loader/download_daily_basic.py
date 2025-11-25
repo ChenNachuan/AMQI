@@ -22,9 +22,9 @@ def download_daily_basic():
     # Initialize API
     pro = init_tushare_api()
     
-    # Generate month ranges from 2000-01 to 2025-11
-    months = generate_month_ranges(2000, 2025, 11)
-    print(f"\nWill download {len(months)} months of data (2000-01 to 2025-11)")
+    # Generate month ranges from 2000-01 to 2025-10
+    months = generate_month_ranges(2000, 2025, 10)
+    print(f"\nWill download {len(months)} months of data (2000-01 to 2025-10)")
     
     all_data = []
     
@@ -64,12 +64,44 @@ def download_daily_basic():
         print("\nCombining all data...")
         final_df = pd.concat(all_data, ignore_index=True)
         
+        # Enforce data types
+        numeric_cols = [
+            'close', 'turnover_rate', 'turnover_rate_f', 'volume_ratio',
+            'pe', 'pe_ttm', 'pb', 'ps', 'ps_ttm', 
+            'dv_ratio', 'dv_ttm', 
+            'total_share', 'float_share', 'free_share', 
+            'total_mv', 'circ_mv'
+        ]
+        
+        for col in numeric_cols:
+            if col in final_df.columns:
+                final_df[col] = pd.to_numeric(final_df[col], errors='coerce')
+                
+        # Ensure string columns are strings
+        str_cols = ['ts_code', 'trade_date']
+        for col in str_cols:
+            if col in final_df.columns:
+                final_df[col] = final_df[col].astype(str)
+        
+        print("\nDataFrame Info before saving:")
+        print(final_df.info())
+        
         # Save to parquet
         save_to_parquet(final_df, 'daily_basic')
         
         print(f"\n✓ Daily basic metrics download completed!")
         print(f"  Total records: {len(final_df):,}")
         print(f"  Date range: {final_df['trade_date'].min()} to {final_df['trade_date'].max()}")
+        
+        # Verify file integrity
+        print("\nVerifying file integrity...")
+        try:
+            from data.data_loader.utils import _get_raw_data_dir
+            file_path = _get_raw_data_dir() / 'daily_basic.parquet'
+            pd.read_parquet(file_path)
+            print("✓ File verification successful: File can be read back.")
+        except Exception as e:
+            print(f"❌ File verification FAILED: {e}")
     else:
         print("\n✗ No data was downloaded")
 
