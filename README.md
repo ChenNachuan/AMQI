@@ -4,24 +4,35 @@
 
 本项目是 2025 年资产管理与量化投资课程的大作业。目标是利用中国股票市场数据，构建基于市场异象的交易策略。策略的表现将对照经典的因子模型进行评估。
 
-## 数据字典
+## 数据来源与字典
 
-本项目使用中国股票市场数据，包含以下变量：
+本项目数据来源于 **Tushare Pro** 接口，原始数据存储在 `data/raw_data/` 目录下，格式为 Parquet。
 
-| 变量 | 描述 |
-| :--- | :--- |
-| `stkcd` | 中国 A 股股票代码 |
-| `year`, `month` | 股票收益记录的年份和月份 |
-| `ret` | 月度股票超额收益 |
-| `size` | 市值（千元人民币） |
-| `r11` | 12-2 个月动量 |
-| `bm` | 账面市值比 |
-| `ep` | 市盈率（盈利/价格） |
-| `roe` | 净资产收益率 |
-| `ivff` | 基于 FF 3 因子模型的特质波动率 |
-| `beta` | CAPM beta |
-| `tur` | 月度换手率 |
-| `srev` | 短期反转（t-1 月收益率） |
+主要数据文件包括：
+
+### 1. 每日指标 (`daily_basic.parquet`)
+
+包含每日的估值和基础指标：
+
+- `ts_code`: 股票代码
+- `trade_date`: 交易日期
+- `close`: 收盘价
+- `turnover_rate`: 换手率
+- `pe`: 市盈率
+- `pb`: 市净率
+- `total_mv`: 总市值
+- `circ_mv`: 流通市值
+- ... (更多指标请参考 `data/raw_data/data_inspection.ipynb`)
+
+### 2. 其他数据
+
+- `stock_basic.parquet`: 股票基础信息
+- `daily.parquet`: 日线行情
+- `fina_indicator.parquet`: 财务指标
+- `income.parquet`: 利润表
+- `balancesheet.parquet`: 资产负债表
+- `cashflow.parquet`: 现金流量表
+- `dividend.parquet`: 分红送股数据
 
 ## 设置说明
 
@@ -34,11 +45,23 @@
     pip install -r requirements.txt
     ```
 
-2. **数据处理**:
-    原始数据为 Stata 格式 (`.dta`)。运行转换脚本以生成优化的 Parquet 文件：
+2. **Tushare 配置**:
+    在项目根目录下创建一个 `.env` 文件，并填入您的 Tushare Token：
+
+    ```
+    TUSHARE_TOKEN=your_token_here
+    ```
+
+3. **数据获取**:
+    运行以下脚本下载数据：
 
     ```bash
-    python convert_data.py
+    # 下载每日基础指标
+    python data/data_loader/download_daily_basic.py
+    
+    # (可选) 运行其他下载脚本
+    # python data/data_loader/download_stock_basic.py
+    # ...
     ```
 
 ## 使用方法
@@ -48,7 +71,8 @@
 ```python
 from data.data_loader import load_stock_data
 
-df = load_stock_data()
+# 默认加载 daily_basic.parquet
+df = load_stock_data(filename="daily_basic.parquet")
 print(df.head())
 ```
 
