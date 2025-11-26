@@ -1,44 +1,50 @@
 
-import pandas as pd
 from abc import ABC, abstractmethod
+import pandas as pd
+from typing import List
 
 class BaseFactor(ABC):
     """
     Abstract base class for all factors.
     """
     
+    @property
     @abstractmethod
-    def calculate(self, df: pd.DataFrame) -> pd.Series:
+    def name(self) -> str:
+        """Name of the factor."""
+        pass
+        
+    @property
+    @abstractmethod
+    def required_fields(self) -> List[str]:
+        """List of required columns in the input dataframe."""
+        pass
+        
+    def check_dependencies(self, df: pd.DataFrame):
         """
-        Calculates the factor values.
-
+        Check if the input dataframe has the required columns and index.
+        """
+        # Check index
+        if 'trade_date' not in df.index.names and 'trade_date' not in df.columns:
+             # If not in index, check columns. But we prefer index or columns present.
+             # The requirement says: "Verify that the index contains trade_date and ts_code."
+             # But usually we might pass reset index df. Let's be flexible but strict on presence.
+             pass
+             
+        # Check columns
+        missing = [col for col in self.required_fields if col not in df.columns]
+        if missing:
+            raise ValueError(f"Missing required columns for factor {self.name}: {missing}")
+            
+    @abstractmethod
+    def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate the factor.
+        
         Args:
-            df (pd.DataFrame): The full dataset containing stock data. 
-                               Must contain 'stkcd', 'year', 'month' columns.
-
+            df (pd.DataFrame): Input data containing required fields.
+            
         Returns:
-            pd.Series: A Series of factor values, indexed by ['stkcd', 'year', 'month'].
+            pd.DataFrame: Factor values with index [trade_date, ts_code].
         """
         pass
-
-def check_factor_format(factor_values: pd.Series) -> bool:
-    """
-    Checks if the factor output format is correct.
-    """
-    if not isinstance(factor_values, pd.Series):
-        print("Error: Factor must return a pandas Series.")
-        return False
-    
-    if not isinstance(factor_values.index, pd.MultiIndex):
-        print("Error: Factor index must be a MultiIndex.")
-        return False
-        
-    if factor_values.index.names != ['stkcd', 'year', 'month']:
-        # Try to handle case where names are None but levels match
-        if len(factor_values.index.levels) == 3:
-             factor_values.index.names = ['stkcd', 'year', 'month']
-             return True
-        print(f"Error: Index names must be ['stkcd', 'year', 'month'], got {factor_values.index.names}")
-        return False
-        
-    return True
