@@ -1,115 +1,74 @@
-# AMQI 2025 项目
 
-## 项目描述
+# AMQI 2025 Project
 
-本项目是 2025 年资产管理与量化投资课程的大作业。目标是利用中国股票市场数据，构建基于市场异象的交易策略。策略的表现将对照经典的因子模型进行评估。
+## Project Description
+This project is for the 2025 Asset Management and Quantitative Investment course. The goal is to build a robust factor investing pipeline using Chinese stock market data.
 
-## 数据来源与字典
+## Directory Structure
 
-本项目数据来源于 **Tushare Pro** 接口，原始数据存储在 `data/raw_data/` 目录下，格式为 Parquet。
+The project follows a modular "Kitchen & Recipe" architecture:
 
-主要数据文件包括：
+-   **`factor_library/` (The Recipes)**: Contains the core logic for factor calculation.
+    -   `base_factor.py`: Abstract base class.
+    -   `momentum.py`, `volatility.py`, `beta.py`, etc.: Individual factor definitions.
+    -   `universe.py`: Universe filtering logic (e.g., Market Cap filter).
 
-### 1. 每日指标 (`daily_basic.parquet`)
+-   **`scripts/` (The Kitchen)**: Execution scripts that load data, use recipes, and produce output.
+    -   `construct_fundamental_factors.py`: Calculates monthly fundamental factors.
+    -   `run_risk_factors.py`: Calculates daily risk factors.
+    -   `finalize_dataset.py`: Merges factors, applies filters, and creates the final dataset.
 
-包含每日的估值和基础指标：
+-   **`data/` (The Pantry)**: Data storage.
+    -   `raw_data/`: Raw parquet files from Tushare.
+    -   `data_cleaner/`: Cleaned whitelist (`daily_basic_cleaned.parquet`).
+    -   `factors/`: Intermediate factor datasets (`fundamental_factors.parquet`, `risk_factors.parquet`).
+    -   `final_dataset.parquet`: The final, analysis-ready dataset.
 
-- `ts_code`: 股票代码
-- `trade_date`: 交易日期
-- `close`: 收盘价
-- `turnover_rate`: 换手率
-- `pe`: 市盈率
-- `pb`: 市净率
-- `total_mv`: 总市值
-- `circ_mv`: 流通市值
-- ... (更多指标请参考 `data/raw_data/data_inspection.ipynb`)
+## Setup
 
-### 2. 其他数据
-
-- `stock_basic.parquet`: 股票基础信息
-- `daily.parquet`: 日线行情
-- `fina_indicator.parquet`: 财务指标
-- `income.parquet`: 利润表
-- `balancesheet.parquet`: 资产负债表
-- `cashflow.parquet`: 现金流量表
-- `dividend.parquet`: 分红送股数据
-
-## 设置说明
-
-1. **环境设置**:
-    确保已安装 Python。建议使用虚拟环境。
-
+1.  **Environment**:
     ```bash
-    python3 -m venv venv
-    source venv/bin/activate
     pip install -r requirements.txt
     ```
 
-2. **Tushare 配置**:
-    在项目根目录下创建一个 `.env` 文件，并填入您的 Tushare Token：
+2.  **Data**:
+    Ensure `data/raw_data/` contains the necessary parquet files (`daily.parquet`, `daily_basic.parquet`, etc.).
 
-    ```
-    TUSHARE_TOKEN=your_token_here
-    ```
+## Workflow
 
-3. **数据获取**:
-    运行以下脚本下载数据：
+To reproduce the dataset from scratch:
 
+1.  **Clean Data** (Generate Whitelist):
     ```bash
-    # 下载每日基础指标
-    python data/data_loader/download_daily_basic.py
-    
-    # (可选) 运行其他下载脚本
-    # python data/data_loader/download_stock_basic.py
-    # ...
+    python data/data_cleaner/clean_data.py
     ```
 
-## 使用方法
+2.  **Construct Factors**:
+    ```bash
+    # Fundamental Factors (Monthly)
+    python scripts/construct_fundamental_factors.py
+    
+    # Risk Factors (Daily)
+    python scripts/run_risk_factors.py
+    ```
 
-在分析脚本中加载处理后的数据：
+3.  **Finalize Dataset** (Merge & Filter):
+    ```bash
+    python scripts/finalize_dataset.py
+    ```
+
+## Usage
+
+Load the final dataset for analysis:
 
 ```python
-from data.data_loader import load_stock_data
-
-# 默认加载 daily_basic.parquet
-df = load_stock_data(filename="daily_basic.parquet")
+import pandas as pd
+df = pd.read_parquet('data/final_dataset.parquet')
 print(df.head())
 ```
 
-## 项目工作流
+## Key Design Decisions
 
-项目采用模块化的工作流设计，分为因子挖掘、模型组装和回测分析三个部分。
-
-### 1. 因子库 (`factor_library/`)
-
-用于存放和开发各类因子。
-
-- **接口定义**: 每个因子类应继承自 `BaseFactor` 并实现 `calculate` 方法。
-- **输入**: 包含股票数据的完整 `DataFrame` (必须包含 `stkcd`, `year`, `month`)。
-- **输出**: `pd.Series`，索引为 `['stkcd', 'year', 'month']` 的 MultiIndex。
-
-```python
-class MyFactor(BaseFactor):
-    def calculate(self, df: pd.DataFrame) -> pd.Series:
-        # ... 计算逻辑 ...
-        return factor_values
-```
-
-### 2. 模型组装 (`model_assembly/`)
-
-用于将多个因子组合成最终的交易信号。
-
-- 支持线性加权等组合方式。
-
-### 3. 回测引擎 (`backtest_engine/`)
-
-用于测试因子或模型的表现。
-
-- 提供 Sharpe Ratio, IC, Max Drawdown 等指标计算。
-- `Backtester` 类支持基于分位数的简单的多空回测。
-
-### 4. 分析笔记本 (`notebooks/`)
-
-用于交互式地测试因子、可视化结果和撰写报告。
-
-- 推荐使用 `01_factor_analysis.ipynb` 作为模板。
+-   **Frequency**: Fundamental factors are Monthly; Risk factors are Daily. They are aligned (Left Join) in the final step.
+-   **Filtering**: A dynamic 30% Market Cap filter is applied during the final assembly to ensure tradability.
+-   **Target**: `next_ret` is the future 1-month return ($R_{t+1}$), aligned for predictive modeling.
