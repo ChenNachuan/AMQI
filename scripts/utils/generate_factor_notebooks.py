@@ -1,0 +1,135 @@
+
+import os
+import json
+
+def create_notebook_content(factor_name):
+    """
+    Creates the content of the Jupyter notebook for a given factor.
+    """
+    
+    # Define the cells based on the user's template
+    cells = [
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "import sys\n",
+                "import os\n",
+                "import pandas as pd\n",
+                "import matplotlib.pyplot as plt\n",
+                "\n",
+                "# Add project root to system path to allow importing modules\n",
+                "sys.path.append(os.path.abspath('..'))\n",
+                "\n",
+                "from backtest.engine import BacktestEngine"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "# Load the prepared datasets\n",
+                "df = pd.read_parquet('../data/final_dataset.parquet')\n",
+                "bench_df = pd.read_parquet('../data/benchmark_csi300_monthly.parquet')\n",
+                "\n",
+                "print(f\"Data Loaded. Shape: {df.shape}\")"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                f"FACTOR_NAME = '{factor_name}'  # This will be replaced by the script\n",
+                "print(f\"Analyzing Factor: {FACTOR_NAME}\")\n",
+                "\n",
+                "# Initialize Engine with Benchmark\n",
+                "engine = BacktestEngine(df, factor_name=FACTOR_NAME, benchmark_df=bench_df)"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "# Run analysis using Value-Weighted sorting (Academic Standard)\n",
+                "summary = engine.run_analysis(weighting='vw')\n",
+                "\n",
+                "# Display Key Metrics\n",
+                "print(\"Performance Summary:\")\n",
+                "for k, v in summary.items():\n",
+                "    print(f\"{k}: {v:.4f}\")"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "# Plot cumulative returns and IC series\n",
+                "engine.plot_results()\n",
+                "plt.show()"
+            ]
+        }
+    ]
+    
+    notebook = {
+        "cells": cells,
+        "metadata": {
+            "kernelspec": {
+                "display_name": "Python 3",
+                "language": "python",
+                "name": "python3"
+            },
+            "language_info": {
+                "codemirror_mode": {
+                    "name": "ipython",
+                    "version": 3
+                },
+                "file_extension": ".py",
+                "mimetype": "text/x-python",
+                "name": "python",
+                "nbconvert_exporter": "python",
+                "pygments_lexer": "ipython3",
+                "version": "3.8.5"
+            }
+        },
+        "nbformat": 4,
+        "nbformat_minor": 4
+    }
+    
+    return notebook
+
+def main():
+    # Define Factor List
+    fundamental_factors = ['R11', 'Bm', 'Ep', 'Roe', 'size']
+    risk_trading_factors = ['beta', 'IVFF', 'TUR', 'Srev']
+    technical_factors = ['ATR', 'Bollinger', 'Ichimoku', 'MFI', 'OBV', 'PVT', 'RVI', 'TEMA', 'SWMA']
+    
+    all_factors = fundamental_factors + risk_trading_factors + technical_factors
+    
+    # Ensure notebooks directory exists
+    notebooks_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'notebooks')
+    os.makedirs(notebooks_dir, exist_ok=True)
+    
+    print(f"Generating notebooks for {len(all_factors)} factors in {notebooks_dir}...")
+    
+    for factor in all_factors:
+        notebook_content = create_notebook_content(factor)
+        filename = f"backtest_{factor}.ipynb"
+        filepath = os.path.join(notebooks_dir, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(notebook_content, f, indent=4)
+            
+        print(f"Generated {filename}")
+
+if __name__ == "__main__":
+    main()

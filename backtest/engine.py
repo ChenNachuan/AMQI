@@ -16,8 +16,86 @@ class BacktestEngine:
         self.df = df
         self.factor_name = factor_name
         self.benchmark_df = benchmark_df
-        self.analyzer = FactorAnalyzer(df, factor_name, target_col)
+        
+        # Check if factor exists, if not, try to calculate it
+        if self.factor_name not in self.df.columns:
+            print(f"在数据集中未找到因子 {self.factor_name}。尝试计算...")
+            self._calculate_factor()
+            
+        self.analyzer = FactorAnalyzer(self.df, factor_name, target_col)
         self.results = {}
+        
+    def _calculate_factor(self):
+        """
+        Calculate factor on the fly using factor_library.
+        """
+        import factor_library
+        
+        # Mapping from short name to Class Name
+        # Based on user request and implementation
+        mapping = {
+            'ATR': 'AverageTrueRange',
+            'Boll': 'BollingerBands',
+            'Ichimoku': 'Ichimoku',
+            'MFI': 'MoneyFlowIndex',
+            'OBV': 'OnBalanceVolume',
+            'PVT': 'PriceVolumeTrend',
+            'RVI': 'RelativeVigorIndex',
+            'TEMA': 'TripleEMA',
+            'SWMA': 'SineWMA',
+            # Add others if needed
+            'R11': 'Momentum', # Example
+            'IVFF': 'Ivff',
+            'beta': 'Beta',
+            'TUR': 'Turnover',
+            'Srev': 'Reversal'
+        }
+        
+        class_name = mapping.get(self.factor_name)
+        if not class_name:
+            print(f"警告：未找到因子 {self.factor_name} 的映射。分析可能会失败。")
+            return
+            
+        try:
+            factor_cls = getattr(factor_library, class_name)
+            factor = factor_cls()
+            
+            # Calculate
+            # Note: factor.calculate returns a DataFrame with index [trade_date, ts_code] and one column
+            print(f"正在计算 {class_name}...")
+            factor_df = factor.calculate(self.df.reset_index())
+            
+            # Merge back to self.df
+            # self.df is indexed by [trade_date, ts_code]
+            # factor_df is also indexed by [trade_date, ts_code]
+            
+            # Check for duplicates in factor_df
+            if factor_df.index.duplicated().any():
+                print("警告：计算出的因子中存在重复索引。")
+                factor_df = factor_df[~factor_df.index.duplicated(keep='first')]
+                
+            # Join
+            # We use join to keep self.df structure
+            # But we need to handle if column already exists (shouldn't happen due to check)
+            
+            # Rename column to self.factor_name if it's different (e.g. 'R11' vs 'Momentum')
+            # The factor.calculate returns column with factor.name.
+            # We need to map it to self.factor_name or update self.factor_name?
+            # The analyzer uses self.factor_name.
+            # So we should rename the result column to self.factor_name.
+            
+            res_col = factor.name
+            if res_col != self.factor_name:
+                print(f"正在重命名因子输出 {res_col} 为 {self.factor_name}")
+                factor_df = factor_df.rename(columns={res_col: self.factor_name})
+                
+            self.df = self.df.join(factor_df[[self.factor_name]], how='left')
+            print(f"因子 {self.factor_name} 已计算并添加。")
+            
+        except Exception as e:
+            print(f"计算因子 {self.factor_name} 时出错：{e}")
+            import traceback
+            traceback.print_exc()
         
     def run_analysis(self, weighting: str = 'vw') -> dict:
         """
@@ -27,7 +105,7 @@ class BacktestEngine:
         Returns:
             Summary dictionary.
         """
-        print(f"Running analysis for factor: {self.factor_name}...")
+        print(f"正在运行因子分析：{self.factor_name}...")
         
         # 1. IC Analysis
         ic_metrics = self.analyzer.calc_ic()
@@ -88,21 +166,21 @@ class BacktestEngine:
         # Compile Summary
         summary = {
             # Factor Potency
-            'IC_Mean': ic_metrics['IC_Mean'],
+            'IC均值': ic_metrics['IC_Mean'],
             'IC_IR': ic_metrics['ICIR'],
-            'Factor_Autocorr': ic_metrics['Autocorrelation'],
+            '因子自相关性': ic_metrics['Autocorrelation'],
             
             # Long-Short Performance (Theoretical)
-            'LS_Return': ls_perf['Annualized Return'],
-            'LS_Sharpe': ls_perf['Sharpe Ratio'],
-            'FM_t_stat': fm_metrics['FM_t_stat'],
+            '多空年化收益': ls_perf['Annualized Return'],
+            '多空夏普比率': ls_perf['Sharpe Ratio'],
+            'FM回归t值': fm_metrics['FM_t_stat'],
             
             # Long-Only Performance (Investable)
-            'Q5_Return': q5_perf['Annualized Return'],
-            'Q5_Sharpe': q5_perf['Sharpe Ratio'],
-            'Q5_MaxDD': q5_perf['Max Drawdown'],
-            'Q5_Turnover': turnover,
-            'Q5_Active_Return': active_ann_ret,
+            'Q5年化收益': q5_perf['Annualized Return'],
+            'Q5夏普比率': q5_perf['Sharpe Ratio'],
+            'Q5最大回撤': q5_perf['Max Drawdown'],
+            'Q5换手率': turnover,
+            'Q5超额收益': active_ann_ret,
             
             # Risk Adjustment
             'Alpha': capm_metrics['Alpha'],
@@ -116,11 +194,19 @@ class BacktestEngine:
         Visualize the results.
         """
         if 'sorting' not in self.results:
-            print("Please run_analysis() first.")
+            print("请先运行 run_analysis()。")
             return
             
         # 1. Cumulative Returns
-        plot_cumulative_returns(self.results['sorting']['quintile_returns'], self.results['sorting']['ls_returns'])
+        bench_ret = None
+        if self.benchmark_df is not None:
+            bench_ret = self.benchmark_df.set_index('trade_date')['ret']
+            
+        plot_cumulative_returns(
+            self.results['sorting']['quintile_returns'], 
+            self.results['sorting']['ls_returns'],
+            benchmark_returns=bench_ret
+        )
         
         # 2. IC Series
         plot_ic_series(self.results['ic']['IC_Series'])

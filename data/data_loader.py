@@ -18,7 +18,24 @@ DATASET_MAPPING = {
     'balancesheet': 'balancesheet.parquet',
     'cashflow': 'cashflow.parquet',
     'fina_indicator': 'fina_indicator.parquet',
-    'dividend': 'dividend.parquet'
+    'dividend': 'dividend.parquet',
+    # Index Data
+    'index_basic': 'index_basic.parquet',
+    'index_weight': 'index_weight.parquet',
+    'index_dailybasic': 'index_dailybasic.parquet',
+    'index_classify': 'index_classify.parquet',
+    # Macro Data
+    'shibor_quote': 'shibor_quote.parquet',
+    'shibor_lpr': 'shibor_lpr.parquet',
+    'cn_gdp': 'cn_gdp.parquet',
+    'cn_cpi': 'cn_cpi.parquet',
+    'cn_pmi': 'cn_pmi.parquet'
+}
+
+# Datasets that should NOT be filtered by stock whitelist
+MACRO_DATASETS = {
+    'index_basic', 'index_weight', 'index_dailybasic', 'index_classify',
+    'shibor_quote', 'shibor_lpr', 'cn_gdp', 'cn_cpi', 'cn_pmi'
 }
 
 def load_data(
@@ -82,7 +99,8 @@ def load_data(
                 raw_data = raw_data[raw_data['trade_date'] <= pd.to_datetime(end_date)]
 
     # 2. Filter Universe (Optional)
-    if filter_universe:
+    # Skip filtering for Macro/Index datasets
+    if filter_universe and dataset_name not in MACRO_DATASETS:
         print(f"Loading whitelist from {WHITELIST_PATH}...")
         whitelist = pd.read_parquet(WHITELIST_PATH, columns=['ts_code', 'trade_date'])
         whitelist['trade_date'] = pd.to_datetime(whitelist['trade_date'].astype(str))

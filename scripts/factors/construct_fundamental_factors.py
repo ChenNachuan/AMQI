@@ -4,14 +4,16 @@ import numpy as np
 import os
 import sys
 
-# Add project root to path to allow importing data.data_loader
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from data.data_loader import load_data, RAW_DATA_DIR, WHITELIST_PATH
 
 def construct_factors():
     print("Constructing fundamental factors...")
     
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    factors_dir = os.path.join(base_dir, 'data', 'factors')
     # 1. Load Market Data (Daily)
     # We need 'close' for returns and 'total_mv' for size/valuation
     print("Loading daily market data...")
@@ -30,10 +32,32 @@ def construct_factors():
     
     # 3. Calculate Market Factors
     print("Calculating market factors (ret, size, R11)...")
-    monthly_market = monthly_market.sort_values(['ts_code', 'trade_date'])
-    
-    # ret: Monthly return
-    monthly_market['ret'] = monthly_market.groupby('ts_code')['close'].pct_change()
+    # Load daily_adjusted for returns
+    adj_path = os.path.join(RAW_DATA_DIR, 'daily_adjusted.parquet')
+    if os.path.exists(adj_path):
+        print(f"Loading adjusted prices from {adj_path}...")
+        adj_df = pd.read_parquet(adj_path)
+        adj_df['trade_date'] = pd.to_datetime(adj_df['trade_date'])
+        
+        # Merge adj_close into daily_basic (which is actually daily data here? No, daily_basic is daily_basic)
+        # We need to merge adj_close into the monthly resampling flow
+        
+        # Resample adj_close to monthly
+        adj_df['month'] = adj_df['trade_date'].dt.to_period('M')
+        adj_df = adj_df.sort_values(['ts_code', 'trade_date'])
+        monthly_adj = adj_df.groupby(['ts_code', 'month'])['adj_close'].last().reset_index()
+        
+        # Calculate ret
+        monthly_adj['ret'] = monthly_adj.groupby('ts_code')['adj_close'].pct_change()
+        
+        # Merge ret into monthly_market
+        # monthly_market has ['ts_code', 'month', 'close', 'total_mv', 'pe', 'pb']
+        monthly_market = pd.merge(monthly_market, monthly_adj[['ts_code', 'month', 'ret']], on=['ts_code', 'month'], how='left')
+        
+    else:
+        print("Warning: daily_adjusted.parquet not found. Using unadjusted close for returns (May be inaccurate).")
+        monthly_market = monthly_market.sort_values(['ts_code', 'trade_date'])
+        monthly_market['ret'] = monthly_market.groupby('ts_code')['close'].pct_change()
     
     # size: Market Cap
     monthly_market['size'] = monthly_market['total_mv']

@@ -24,9 +24,10 @@ The project follows a modular "Kitchen & Recipe" architecture:
     -   `run_risk_factors.py`: Calculates daily risk factors.
     -   `finalize_dataset.py`: Merges factors, applies filters, and creates the final dataset.
     -   `test_backtest.py`: Verifies the backtest engine.
+    -   `../data/data_loader/download_ext_data.py`: Downloads external data (Indices, Macro).
 
 -   **`data/` (The Pantry)**: Data storage.
-    -   `raw_data/`: Raw parquet files from Tushare.
+    -   `raw_data/`: Raw parquet files from Tushare (Stocks, Indices, Macro).
     -   `data_cleaner/`: Cleaned whitelist (`daily_basic_cleaned.parquet`).
     -   `factors/`: Intermediate factor datasets (`fundamental_factors.parquet`, `risk_factors.parquet`).
     -   `final_dataset.parquet`: The final, analysis-ready dataset.
@@ -49,6 +50,11 @@ To reproduce the dataset from scratch:
 1.  **Clean Data** (Generate Whitelist):
     ```bash
     python data/data_cleaner/clean_data.py
+    ```
+
+0.  **Download Data** (Optional):
+    ```bash
+    python data/data_loader/download_ext_data.py
     ```
 
 2.  **Construct Factors**:

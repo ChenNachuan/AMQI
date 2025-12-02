@@ -5,7 +5,7 @@ import os
 import sys
 
 # Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from data.data_loader import load_data
 from factor_library import Beta, Ivff, Turnover, Reversal
@@ -14,11 +14,11 @@ def run_risk_factors():
     print("Running Risk Factors Construction...")
     
     # Define paths
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    output_dir = os.path.join(base_dir, 'data', 'factors')
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    output_path = os.path.join(output_dir, 'risk_factors.parquet')
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    factors_dir = os.path.join(base_dir, 'data', 'factors')
+    if not os.path.exists(factors_dir):
+        os.makedirs(factors_dir)
+    output_path = os.path.join(factors_dir, 'risk_factors.parquet')
     
     # 1. Load Data
     print("Loading data...")

@@ -19,6 +19,7 @@ def merge_factors():
     
     fund_path = os.path.join(factors_dir, 'fundamental_factors.parquet')
     risk_path = os.path.join(factors_dir, 'risk_factors.parquet')
+    tech_path = os.path.join(factors_dir, 'technical_factors.parquet')
     daily_basic_path = os.path.join(raw_data_dir, 'daily_basic.parquet')
     output_path = os.path.join(base_dir, 'data', 'final_dataset.parquet')
     
@@ -30,8 +31,17 @@ def merge_factors():
     fund_df = pd.read_parquet(fund_path)
     risk_df = pd.read_parquet(risk_path)
     
+    tech_df = None
+    if os.path.exists(tech_path):
+        print(f"Loading technical factors from {tech_path}")
+        tech_df = pd.read_parquet(tech_path)
+    else:
+        print("Warning: Technical factors file not found. Skipping.")
+    
     print(f"Fundamental factors shape: {fund_df.shape}")
     print(f"Risk factors shape: {risk_df.shape}")
+    if tech_df is not None:
+        print(f"Technical factors shape: {tech_df.shape}")
     
     # 2. Load Market Cap for Filtering
     print("Loading daily_basic for market cap filtering...")
@@ -49,12 +59,18 @@ def merge_factors():
     print("Merging datasets...")
     fund_df = fund_df.reset_index()
     risk_df = risk_df.reset_index()
+    if tech_df is not None:
+        tech_df = tech_df.reset_index()
     
     # Ensure columns exist
     join_keys = ['trade_date', 'ts_code']
     
     # Merge Fundamental and Risk
     merged = pd.merge(fund_df, risk_df, on=join_keys, how='inner')
+    
+    # Merge Technical
+    if tech_df is not None:
+        merged = pd.merge(merged, tech_df, on=join_keys, how='inner')
     
     # Merge with Market Cap (for filtering)
     # Note: merged has 'trade_date' which is month-end. monthly_mv has 'trade_date' which is also month-end.

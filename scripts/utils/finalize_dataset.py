@@ -5,7 +5,7 @@ import os
 import sys
 
 # Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from data.data_loader import load_data
 from factor_library import Universe
@@ -14,7 +14,7 @@ def finalize_dataset():
     print("Finalizing Dataset (Robust Month-Key Join)...")
     
     # Define paths
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     factors_dir = os.path.join(base_dir, 'data', 'factors')
     output_path = os.path.join(base_dir, 'data', 'final_dataset.parquet')
     
