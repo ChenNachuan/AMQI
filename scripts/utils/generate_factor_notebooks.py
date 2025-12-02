@@ -109,7 +109,11 @@ def create_notebook_content(factor_name):
 
 def main():
     # Define Factor List
-    fundamental_factors = ['R11', 'Bm', 'Ep', 'Roe', 'size']
+    fundamental_factors = [
+        'R11', 'Bm', 'Ep', 'Roe', 'size',
+        'OCFtoNI', 'APTurnover', 'APDays', 'FATurnover', 'IntCoverage',
+        'TaxRate', 'OpAssetChg', 'EquityRatio', 'NOAT', 'FARatio'
+    ]
     risk_trading_factors = ['beta', 'IVFF', 'TUR', 'Srev']
     technical_factors = ['ATR', 'Bollinger', 'Ichimoku', 'MFI', 'OBV', 'PVT', 'RVI', 'TEMA', 'SWMA']
     

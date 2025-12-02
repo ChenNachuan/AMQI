@@ -16,8 +16,21 @@ from .rvi import RelativeVigorIndex
 from .tema import TripleEMA
 from .swma import SineWMA
 
+from .ocf_ni import OCFtoNI
+from .ap_turnover import APTurnover
+from .ap_days import APDays
+from .fa_turnover import FATurnover
+from .int_coverage import IntCoverage
+from .tax_rate import TaxRate
+from .op_asset_chg import OpAssetChg
+from .equity_ratio import EquityRatio
+from .noat import NOAT
+from .fa_ratio import FARatio
+
 __all__ = [
     'BaseFactor', 'Momentum', 'Universe', 'Ivff', 'Beta', 'Turnover', 'Reversal',
     'AverageTrueRange', 'BollingerBands', 'Ichimoku', 'MoneyFlowIndex', 
-    'OnBalanceVolume', 'PriceVolumeTrend', 'RelativeVigorIndex', 'TripleEMA', 'SineWMA'
+    'OnBalanceVolume', 'PriceVolumeTrend', 'RelativeVigorIndex', 'TripleEMA', 'SineWMA',
+    'OCFtoNI', 'APTurnover', 'APDays', 'FATurnover', 'IntCoverage', 'TaxRate',
+    'OpAssetChg', 'EquityRatio', 'NOAT', 'FARatio'
 ]

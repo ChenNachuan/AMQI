@@ -168,8 +168,12 @@ def finalize_dataset():
     # 5. Data Enrichment
     print("Calculating Roe...")
     # Roe = Ep / Bm
-    merged['Roe'] = merged['Ep'] / merged['Bm']
-    merged['Roe'] = merged['Roe'].replace([np.inf, -np.inf], np.nan)
+    if 'Ep' in merged.columns and 'Bm' in merged.columns:
+        merged['Roe'] = merged['Ep'] / merged['Bm']
+        merged['Roe'] = merged['Roe'].replace([np.inf, -np.inf], np.nan)
+    else:
+        print("Warning: Ep or Bm missing. Skipping Roe calculation.")
+        merged['Roe'] = np.nan
     
     # 6. Universe Filtering
     print("Applying Universe Filter (Bottom 30% Market Cap)...")
