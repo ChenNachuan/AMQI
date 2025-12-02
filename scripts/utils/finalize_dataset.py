@@ -10,6 +10,79 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from data.data_loader import load_data
 from factor_library import Universe
 
+# Define Aggregation Rules
+AGGREGATION_RULES = {
+    # --- 必须取平均的 (Flow / Activity) ---
+    'TUR': 'mean',
+    
+    # --- 必须取期末值的 (State / Signal) ---
+    # 技术面
+    'ATR': 'last',
+    'Boll': 'last',
+    'Ichimoku': 'last',
+    'MFI': 'last',
+    'OBV': 'last',
+    'PVT': 'last',
+    'RVI': 'last',
+    'TEMA': 'last',
+    'SWMA': 'last',
+    
+    # 风险/基本面 (已隐含 Rolling 或本身就是截面数据)
+    'beta': 'last',
+    'IVFF': 'last',
+    'R11': 'last',
+    'Srev': 'last',
+    'Bm': 'last',
+    'Ep': 'last',
+    'size': 'last',   # 市值通常取月末时点值
+    'ret': 'last'     # 注意：如果 ret 是原始日收益，这里其实应该用 compound 或 sum，
+                      # 但你的 fundamental_factors 里算的是 monthly ret，所以如果是合并后的不用管。
+                      # 如果是日频数据直接转月频，ret 不能用 last 或 mean，要用累乘。
+                      # *注：你的流程里 ret 已经在 fundamental_factors 里算成月频了，这里指的是 Risk/Tech 因子。*
+}
+
+def downsample_daily_to_monthly(df: pd.DataFrame, name: str = "Data") -> pd.DataFrame:
+    """
+    Downsample daily data to monthly using dynamic aggregation rules.
+    """
+    print(f"Downsampling {name}...")
+    
+    # Ensure datetime and sort
+    if 'trade_date' not in df.columns:
+        df = df.reset_index()
+    
+    df['trade_date'] = pd.to_datetime(df['trade_date'])
+    df = df.sort_values(['ts_code', 'trade_date'])
+    
+    # Create month key
+    df['month'] = df['trade_date'].dt.to_period('M')
+    
+    # Construct Aggregation Dictionary
+    agg_dict = {}
+    for col in df.columns:
+        if col in ['ts_code', 'month']:
+            continue
+        
+        # trade_date should always be last (to capture the actual date of the record)
+        if col == 'trade_date':
+            agg_dict[col] = 'last'
+            continue
+            
+        # Use specific rule if exists, else default to 'last'
+        agg_dict[col] = AGGREGATION_RULES.get(col, 'last')
+        
+    print(f"Aggregation Rules for {name}:")
+    # Print only non-default rules for clarity, or all if needed
+    for k, v in agg_dict.items():
+        if v != 'last':
+            print(f"  - {k}: {v}")
+            
+    # Perform Aggregation
+    monthly_df = df.groupby(['ts_code', 'month']).agg(agg_dict).reset_index()
+    print(f"{name} monthly shape: {monthly_df.shape}")
+    
+    return monthly_df
+
 def finalize_dataset():
     print("Finalizing Dataset (Robust Month-Key Join)...")
     
@@ -20,6 +93,7 @@ def finalize_dataset():
     
     fund_path = os.path.join(factors_dir, 'fundamental_factors.parquet')
     risk_path = os.path.join(factors_dir, 'risk_factors.parquet')
+    tech_path = os.path.join(factors_dir, 'technical_factors.parquet')
     
     # 1. Load Data
     print("Loading factor files...")
@@ -29,68 +103,65 @@ def finalize_dataset():
     fund_df = pd.read_parquet(fund_path) # Monthly (Calendar Month End usually)
     risk_df = pd.read_parquet(risk_path) # Daily
     
+    if os.path.exists(tech_path):
+        print("Loading technical factors...")
+        tech_df = pd.read_parquet(tech_path) # Daily
+    else:
+        print("Warning: Technical factors file not found. Skipping.")
+        tech_df = None
+    
     print(f"Fundamental factors shape: {fund_df.shape}")
     print(f"Risk factors shape: {risk_df.shape}")
+    if tech_df is not None:
+        print(f"Technical factors shape: {tech_df.shape}")
     
     # Load Market Cap for Filtering
     print("Loading daily_basic for market cap filtering...")
     # We need total_mv. We load daily and will downsample.
     daily_basic = load_data('daily_basic', columns=['total_mv'], filter_universe=True)
     
-    # 2. Pre-processing & Month Key Creation
-    print("Creating Month Keys...")
-    
-    # Ensure datetime
+    # 2. Pre-processing & Month Key Creation for Fundamental
+    print("Creating Month Keys for Fundamental...")
     if 'trade_date' not in fund_df.columns:
         fund_df = fund_df.reset_index()
-    if 'trade_date' not in risk_df.columns:
-        risk_df = risk_df.reset_index()
-        
     fund_df['trade_date'] = pd.to_datetime(fund_df['trade_date'])
-    risk_df['trade_date'] = pd.to_datetime(risk_df['trade_date'])
-    daily_basic['trade_date'] = pd.to_datetime(daily_basic['trade_date'])
-    
-    # Create 'month' column (Period)
     fund_df['month'] = fund_df['trade_date'].dt.to_period('M')
-    risk_df['month'] = risk_df['trade_date'].dt.to_period('M')
-    daily_basic['month'] = daily_basic['trade_date'].dt.to_period('M')
     
-    # 3. Downsample Daily Data to Monthly (End of Month)
-    print("Downsampling Daily Data...")
+    # 3. Downsample Daily Data to Monthly
+    risk_monthly = downsample_daily_to_monthly(risk_df, name="Risk Factors")
     
-    # Risk Factors: Take last record per stock-month
-    # Sort by date first to ensure .last() is the end of month
-    risk_df = risk_df.sort_values(['ts_code', 'trade_date'])
-    risk_monthly = risk_df.groupby(['ts_code', 'month']).last().reset_index()
+    tech_monthly = None
+    if tech_df is not None:
+        tech_monthly = downsample_daily_to_monthly(tech_df, name="Technical Factors")
     
     # Market Cap: Take last record per stock-month
+    # We can use the helper or just do it manually since it's simple
+    daily_basic['trade_date'] = pd.to_datetime(daily_basic['trade_date'])
+    daily_basic['month'] = daily_basic['trade_date'].dt.to_period('M')
     daily_basic = daily_basic.sort_values(['ts_code', 'trade_date'])
     mv_monthly = daily_basic.groupby(['ts_code', 'month']).last().reset_index()
-    
-    print(f"Risk monthly shape: {risk_monthly.shape}")
     
     # 4. Robust Merge
     print("Merging datasets on Month Key...")
     
     # Fundamental (Left) + Risk (Right) on ['ts_code', 'month']
-    # Note: Fundamental might have 'trade_date' as Jan 31, Risk as Jan 29.
-    # We want to keep the Risk trade_date as it is the actual trading day.
-    
-    # Rename trade_date in Fundamental to avoid collision/confusion, or just drop it after merge if we prefer Risk date.
-    # Let's rename fundamental date to 'fund_date' and risk date to 'trade_date' (it already is).
+    # Rename trade_date in Fundamental
     fund_df = fund_df.rename(columns={'trade_date': 'fund_date'})
     
     merged = pd.merge(fund_df, risk_monthly, on=['ts_code', 'month'], how='left')
     
+    # Merge Technical
+    if tech_monthly is not None:
+        # Drop trade_date from tech to avoid collision if it exists in risk (it should be same or close)
+        # But wait, we want to ensure we have a valid trade_date.
+        # Risk monthly has 'trade_date'. Tech monthly has 'trade_date'.
+        # They should be the same (end of month).
+        # We can drop one.
+        tech_monthly = tech_monthly.drop(columns=['trade_date'])
+        merged = pd.merge(merged, tech_monthly, on=['ts_code', 'month'], how='left')
+    
     # Merge Market Cap
     merged = pd.merge(merged, mv_monthly[['ts_code', 'month', 'total_mv']], on=['ts_code', 'month'], how='left')
-    
-    # Restore trade_date
-    # If risk data is missing (NaN), trade_date will be NaT.
-    # In that case, we might want to fall back to fund_date (converted to timestamp) or just drop.
-    # Usually we want valid risk factors, so we might drop rows where risk is missing.
-    # But for now, let's keep left join.
-    # If trade_date is NaT, it means no risk data for that month.
     
     print(f"Merged shape before filtering: {merged.shape}")
     
@@ -102,13 +173,6 @@ def finalize_dataset():
     
     # 6. Universe Filtering
     print("Applying Universe Filter (Bottom 30% Market Cap)...")
-    # Use the Universe class
-    # Note: apply_market_cap_filter expects 'trade_date' and 'total_mv'.
-    # We have 'trade_date' (from Risk) and 'total_mv'.
-    # If trade_date is NaT, filtering might fail or drop.
-    # Let's drop rows with missing trade_date first?
-    # Or fill NaT with fund_date?
-    # Let's drop rows where we don't have risk data (and thus no trade_date), as we can't analyze them.
     
     merged = merged.dropna(subset=['trade_date'])
     

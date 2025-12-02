@@ -10,8 +10,22 @@ The project follows a modular "Kitchen & Recipe" architecture:
 
 -   **`factor_library/` (The Recipes)**: Contains the core logic for factor calculation.
     -   `base_factor.py`: Abstract base class.
-    -   `momentum.py`, `volatility.py`, `beta.py`, etc.: Individual factor definitions.
     -   `universe.py`: Universe filtering logic (e.g., Market Cap filter).
+    -   **Available Factors**:
+        -   `atr.py`: Average True Range.
+        -   `beta.py`: Beta factor.
+        -   `bollinger.py`: Bollinger Bands.
+        -   `ichimoku.py`: Ichimoku Cloud.
+        -   `mfi.py`: Money Flow Index.
+        -   `momentum.py`: Momentum (R11).
+        -   `obv.py`: On-Balance Volume.
+        -   `pvt.py`: Price Volume Trend.
+        -   `reversal.py`: Reversal factor.
+        -   `rvi.py`: Relative Vigor Index.
+        -   `swma.py`: Sine Weighted Moving Average.
+        -   `tema.py`: Triple Exponential Moving Average.
+        -   `turnover.py`: Turnover factor.
+        -   `volatility.py`: Volatility factor.
 
 -   **`backtest/` (The Engine)**: A production-ready backtesting framework.
     -   `metrics.py`: Statistical core (Newey-West t-stats, Sharpe, etc.).
