@@ -14,7 +14,9 @@ print(f"sys.path: {sys.path}")
 from data.data_loader import load_data, RAW_DATA_DIR, WHITELIST_PATH
 from factor_library import (
     OCFtoNI, APTurnover, APDays, FATurnover, IntCoverage, TaxRate,
-    OpAssetChg, EquityRatio, NOAT, FARatio, ROEMomNAGrowth
+    OpAssetChg, EquityRatio, NOAT, FARatio, ROEMomNAGrowth,
+    capex_growth_rate, debt_growth_rate, debt_yoy_growth, epsurplus,
+    equity_turnover, issuance_growth_rate, op_cash_ratio, op_cost_margin, revenue_per_share
 )
 from scripts.utils.financial_utils import convert_ytd_to_ttm
 
@@ -149,7 +151,8 @@ def construct_factors():
     # Define fields that strictly require TTM conversion (Flow variables)
     TTM_REQUIRED_FIELDS = {
         'n_cashflow_act', 'n_income', 'int_exp', 'income_tax', 'total_profit', 
-        'total_cogs', 'n_income_attr_p', 'revenue', 'total_revenue', 'oper_cost', 'operate_profit'
+        'total_cogs', 'n_income_attr_p', 'revenue', 'total_revenue', 'oper_cost', 'operate_profit',
+        'n_recp_disp_fiolta', 'sell_exp', 'admin_exp', 'fin_exp'
     }
     
     # We only convert columns that exist in financial_df AND are in the required list
@@ -182,6 +185,15 @@ def construct_factors():
     else:
         print("没有需要转换为 TTM 的列。")
         
+    # Create Aliases for Factor Compatibility
+    print("正在创建列别名...")
+    if 'n_income' in financial_df.columns:
+        financial_df['net_profit'] = financial_df['n_income']
+    if 'operate_profit' in financial_df.columns:
+        financial_df['op_income'] = financial_df['operate_profit']
+    if 'n_recp_disp_fiolta' in financial_df.columns:
+        financial_df['asset_disp_income'] = financial_df['n_recp_disp_fiolta']
+        
     # Calculate ROE (TTM) for RoeMomNaGrowth
     # roe_ttm = n_income_attr_p (TTM) / total_hldr_eqy_exc_min_int (Average or End?)
     # Using End period equity for simplicity as per common practice in simple factors, or Average if possible.
@@ -197,7 +209,9 @@ def construct_factors():
     
     factors = [
         OCFtoNI(), APTurnover(), APDays(), FATurnover(), IntCoverage(),
-        TaxRate(), OpAssetChg(), EquityRatio(), NOAT(), FARatio(), ROEMomNAGrowth()
+        TaxRate(), OpAssetChg(), EquityRatio(), NOAT(), FARatio(), ROEMomNAGrowth(),
+        capex_growth_rate(), debt_growth_rate(), debt_yoy_growth(), epsurplus(),
+        equity_turnover(), issuance_growth_rate(), op_cash_ratio(), op_cost_margin(), revenue_per_share()
     ]
     
     # Store results

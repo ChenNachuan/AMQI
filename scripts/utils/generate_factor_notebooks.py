@@ -112,7 +112,10 @@ def main():
     fundamental_factors = [
         'R11', 'Bm', 'Ep', 'Roe', 'size',
         'OCFtoNI', 'APTurnover', 'APDays', 'FATurnover', 'IntCoverage',
-        'TaxRate', 'OpAssetChg', 'EquityRatio', 'NOAT', 'FARatio'
+        'TaxRate', 'OpAssetChg', 'EquityRatio', 'NOAT', 'FARatio',
+        'roe_mom_na_growth', 'capex_growth_rate', 'debt_growth_rate', 'debt_yoy_growth',
+        'epsurplus', 'equity_turnover', 'issuance_growth_rate', 'op_cash_ratio',
+        'op_cost_margin', 'revenue_per_share'
     ]
     risk_trading_factors = ['beta', 'IVFF', 'TUR', 'Srev']
     technical_factors = [

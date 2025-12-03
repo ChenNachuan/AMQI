@@ -27,6 +27,15 @@ from .equity_ratio import EquityRatio
 from .noat import NOAT
 from .fa_ratio import FARatio
 from .roe_mom_na_growth import ROEMomNAGrowth
+from .capex_growth_rate import capex_growth_rate
+from .debt_growth_rate import debt_growth_rate
+from .debt_yoy_growth import debt_yoy_growth
+from .epsurplus import epsurplus
+from .equity_turnover import equity_turnover
+from .issuance_growth_rate import issuance_growth_rate
+from .op_cash_ratio import op_cash_ratio
+from .op_cost_margin import op_cost_margin
+from .revenue_per_share import revenue_per_share
 
 # New Technical Factors
 from .atr_expansion import ATRExpansion
@@ -65,6 +74,8 @@ __all__ = [
     'OnBalanceVolume', 'PriceVolumeTrend', 'RelativeVigorIndex', 'TripleEMA', 'SineWMA',
     'OCFtoNI', 'APTurnover', 'APDays', 'FATurnover', 'IntCoverage', 'TaxRate',
     'OpAssetChg', 'EquityRatio', 'NOAT', 'FARatio', 'ROEMomNAGrowth',
+    'capex_growth_rate', 'debt_growth_rate', 'debt_yoy_growth', 'epsurplus',
+    'equity_turnover', 'issuance_growth_rate', 'op_cash_ratio', 'op_cost_margin', 'revenue_per_share',
     'ATRExpansion', 'PriceBreakout', 'PricePosition', 'ATRTrend', 'VolumeConfirmation',
     'BollingerBreakoutUpper', 'BollingerMiddleSupport', 'BollingerOversoldBounce', 'BollingerSqueezeExpansion',
     'IchimokuCloudTrend', 'IchimokuCloudWidthMomentum', 'IchimokuPricePosition', 'IchimokuTKCross',
