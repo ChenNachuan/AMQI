@@ -221,7 +221,7 @@ class FactorAnalyzer:
         try:
             model = sm.OLS(y, X, missing='drop').fit()
             alpha = model.params['const']
-            beta = model.params[0] # Slope
+            beta = model.params.iloc[1] # Slope (2nd param)
             return {'Alpha': alpha, 'Beta': beta}
         except:
             return {'Alpha': np.nan, 'Beta': np.nan}

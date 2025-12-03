@@ -101,4 +101,4 @@ def newey_west_t_stat(series: pd.Series, lags: int = 6) -> float:
     model = sm.OLS(series, X)
     results = model.fit(cov_type='HAC', cov_kwds={'maxlags': lags})
     
-    return results.tvalues[0]
+    return results.tvalues.iloc[0]
