@@ -237,3 +237,130 @@ class FactorAnalyzer:
             return {'Alpha': alpha, 'Beta': beta}
         except:
             return {'Alpha': np.nan, 'Beta': np.nan}
+    def calc_daily_factor_returns(self, daily_df: pd.DataFrame, weighting: str = 'vw', quantiles: int = 5, direction: str = 'positive') -> dict:
+        """
+        Calculate Daily Portfolio Returns with Monthly Rebalancing.
+        
+        Args:
+            daily_df: Daily DataFrame with [ts_code, trade_date, pct_chg].
+            weighting: 'vw' or 'ew'.
+            quantiles: Number of buckets.
+            direction: 'positive' or 'negative'.
+            
+        Returns:
+            Dict with 'quintile_daily_returns' and 'ls_daily_returns'.
+        """
+        # 1. Assign Quantiles (Monthly)
+        # Reuse logic from calc_factor_returns but only need the mapping
+        def quantile_func(g):
+            valid_count = g[self.factor_name].count()
+            if valid_count < quantiles:
+                return pd.Series(np.nan, index=g.index)
+            try:
+                return pd.qcut(g[self.factor_name], quantiles, labels=False, duplicates='drop') + 1
+            except ValueError:
+                return pd.Series(np.nan, index=g.index)
+                
+        # Calculate quantiles on the monthly factor data
+        monthly_quantiles = self.df.groupby(level='trade_date').apply(quantile_func).reset_index(level=0, drop=True)
+        
+        # Create holdings DataFrame: [trade_date, ts_code, quantile, weight]
+        holdings = self.df.copy()
+        holdings['quantile'] = monthly_quantiles
+        
+        # Calculate weights
+        if weighting == 'vw' and 'size' in holdings.columns:
+            holdings['weight'] = holdings['size']
+        else:
+            holdings['weight'] = 1.0
+            
+        # Filter for valid holdings
+        holdings = holdings.dropna(subset=['quantile', 'weight']).reset_index()
+        # holdings has 'trade_date' which is the rebalancing date (end of month)
+        
+        # 2. Prepare Daily Data
+        # Ensure daily_df has required columns
+        if 'pct_chg' not in daily_df.columns:
+            # Try to calc from close if needed, but usually daily_adj has it or we computed it
+            if 'close' in daily_df.columns:
+                daily_df['pct_chg'] = daily_df.groupby('ts_code')['close'].pct_change()
+            else:
+                raise ValueError("daily_df must have 'pct_chg' or 'close'")
+                
+        daily_data = daily_df[['trade_date', 'ts_code', 'pct_chg']].copy()
+        daily_data['trade_date'] = pd.to_datetime(daily_data['trade_date'])
+        daily_data = daily_data.sort_values('trade_date')
+        
+        # 3. Merge Holdings with Daily Data
+        # We want to use the holdings from the *previous* month end for the current day
+        # e.g. Holdings at 2010-01-31 are used for 2010-02-01 to 2010-02-28
+        
+        # Sort holdings by date
+        holdings['trade_date'] = pd.to_datetime(holdings['trade_date'])
+        holdings = holdings.sort_values('trade_date')
+        
+        # Use merge_asof
+        # daily_data is 'left', holdings is 'right'
+        # We match daily_data.trade_date with holdings.trade_date
+        # direction='backward' means we look for the closest holding date <= daily date
+        # But wait, we rebalance at close of month M. So for month M+1, we use holdings of M.
+        # The rebalancing date is M_end.
+        # So for any day D > M_end, we use M_end holdings.
+        # But we must strictly exclude D == M_end (because on rebalancing day we haven't rebalanced yet? 
+        # Actually standard backtest assumes we trade at close of M_end, so M_end+1 uses new weights).
+        # merge_asof with 'backward' finds closest date <= current.
+        # If we use allow_exact_matches=False, it finds < current.
+        # If daily date is Feb 1, and holdings are Jan 31, backward finds Jan 31. Correct.
+        # If daily date is Jan 31, backward finds Jan 31. 
+        # But on Jan 31 we should use Jan 31 holdings? No, on Jan 31 we use Dec 31 holdings.
+        # So we need strict inequality: holdings_date < daily_date.
+        # merge_asof doesn't support strict inequality directly easily without allow_exact_matches=False.
+        
+        merged = pd.merge_asof(
+            daily_data.sort_values('trade_date'),
+            holdings[['trade_date', 'ts_code', 'quantile', 'weight']].sort_values('trade_date'),
+            on='trade_date',
+            by='ts_code',
+            direction='backward',
+            allow_exact_matches=False 
+        )
+        
+        # Drop rows where we didn't find holdings (e.g. before first rebalancing)
+        merged = merged.dropna(subset=['quantile'])
+        
+        # 4. Calculate Daily Portfolio Returns
+        # Group by [daily_date, quantile]
+        def w_avg(g):
+            if g['weight'].sum() == 0:
+                return np.nan
+            return np.average(g['pct_chg'], weights=g['weight'])
+            
+        # pct_chg in daily_adj is usually 0-100 or 0-1? 
+        # Tushare usually gives 0-100? Need to check.
+        # Assuming 0.01 format (1%). If it's 100, we need to divide by 100.
+        # Let's check max value. If > 1, likely percentage.
+        if merged['pct_chg'].abs().max() > 1.5: # Heuristic
+             merged['pct_chg'] = merged['pct_chg'] / 100.0
+             
+        daily_quintile_rets = merged.groupby(['trade_date', 'quantile']).apply(w_avg).unstack()
+        
+        # 5. Long-Short Daily Returns
+        q_min = 1
+        q_max = quantiles
+        cols = daily_quintile_rets.columns
+        if not cols.empty:
+             q_min = cols.min()
+             q_max = cols.max()
+             
+        if q_min in cols and q_max in cols:
+            if direction == 'positive':
+                ls_daily = daily_quintile_rets[q_max] - daily_quintile_rets[q_min]
+            else:
+                ls_daily = daily_quintile_rets[q_min] - daily_quintile_rets[q_max]
+        else:
+            ls_daily = pd.Series(0.0, index=daily_quintile_rets.index)
+            
+        return {
+            'quintile_daily_returns': daily_quintile_rets,
+            'ls_daily_returns': ls_daily
+        }

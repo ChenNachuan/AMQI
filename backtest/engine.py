@@ -26,6 +26,30 @@ class BacktestEngine:
         self.analyzer = FactorAnalyzer(self.df, factor_name, target_col)
         self.results = {}
         
+        # Load daily data for continuous plotting
+        self.daily_df = None
+        self._load_daily_data()
+        
+    def _load_daily_data(self):
+        """
+        Load daily adjusted data for daily return calculation.
+        """
+        import os
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        daily_path = os.path.join(base_dir, 'data', 'data_cleaner', 'daily_adj.parquet')
+        
+        if os.path.exists(daily_path):
+            try:
+                self.daily_df = pd.read_parquet(daily_path)
+                # Ensure pct_chg exists
+                if 'pct_chg' not in self.daily_df.columns:
+                     if 'close' in self.daily_df.columns:
+                         self.daily_df['pct_chg'] = self.daily_df.groupby('ts_code')['close'].pct_change()
+            except Exception as e:
+                print(f"Warning: Failed to load daily data from {daily_path}: {e}")
+        else:
+            print(f"Warning: Daily data not found at {daily_path}")
+        
     def _calculate_factor(self):
         """
         Calculate factor on the fly using factor_library.
@@ -114,8 +138,26 @@ class BacktestEngine:
         self.results['ic'] = ic_metrics
         
         # 2. Portfolio Sorting
+        # 2. Portfolio Sorting
         sort_metrics = self.analyzer.calc_factor_returns(weighting=weighting, direction=direction)
         self.results['sorting'] = sort_metrics
+        
+        # 2.1 Daily Returns (for plotting)
+        if self.daily_df is not None:
+            print("Calculating daily portfolio returns...")
+            daily_metrics = self.analyzer.calc_daily_factor_returns(
+                self.daily_df, weighting=weighting, direction=direction
+            )
+            self.results['daily_sorting'] = daily_metrics
+            # Use daily returns for performance metrics if available
+            ls_ret = daily_metrics['ls_daily_returns']
+            quintile_rets = daily_metrics['quintile_daily_returns']
+            periods_per_year = 252
+        else:
+            print("Warning: Using monthly returns for performance metrics (discontinuous plot).")
+            ls_ret = sort_metrics['ls_returns']
+            quintile_rets = sort_metrics['quintile_returns']
+            periods_per_year = 12
         
         # 3. Turnover (Long Portfolio)
         # If positive, Long Q5. If negative, Long Q1.
@@ -127,7 +169,8 @@ class BacktestEngine:
         self.results['fm'] = fm_metrics
         
         # 5. Alpha/Beta (CAPM)
-        ls_ret = sort_metrics['ls_returns']
+        # 5. Alpha/Beta (CAPM)
+        # ls_ret is already defined above (daily or monthly)
         
         # Determine Benchmark Return
         if self.benchmark_df is not None:
@@ -141,15 +184,17 @@ class BacktestEngine:
         self.results['capm'] = capm_metrics
         
         # 6. Performance Metrics (Long-Short)
+        # 6. Performance Metrics (Long-Short)
         ls_perf = {
-            'Annualized Return': annualized_return(ls_ret),
-            'Sharpe Ratio': sharpe_ratio(ls_ret),
+            'Annualized Return': annualized_return(ls_ret, periods_per_year),
+            'Sharpe Ratio': sharpe_ratio(ls_ret, periods_per_year=periods_per_year),
             'Max Drawdown': max_drawdown(ls_ret)
         }
         
         # 7. Long-Only Performance
         # If direction is positive, use max quantile (Q5). If negative, use min quantile (Q1).
-        quintile_rets = sort_metrics['quintile_returns']
+        # 7. Long-Only Performance
+        # quintile_rets is already defined above (daily or monthly)
         
         target_q = None
         if not quintile_rets.columns.empty:
@@ -165,8 +210,8 @@ class BacktestEngine:
         if target_q is not None and target_q in quintile_rets.columns:
             long_ret = quintile_rets[target_q]
             long_perf = {
-                'Annualized Return': annualized_return(long_ret),
-                'Sharpe Ratio': sharpe_ratio(long_ret),
+                'Annualized Return': annualized_return(long_ret, periods_per_year),
+                'Sharpe Ratio': sharpe_ratio(long_ret, periods_per_year=periods_per_year),
                 'Max Drawdown': max_drawdown(long_ret)
             }
             
@@ -175,7 +220,17 @@ class BacktestEngine:
                 # Align
                 common = long_ret.index.intersection(mkt_ret.index)
                 active_ret = long_ret.loc[common] - mkt_ret.loc[common]
-                active_ann_ret = annualized_return(active_ret)
+                # Align
+                common = long_ret.index.intersection(mkt_ret.index)
+                active_ret = long_ret.loc[common] - mkt_ret.loc[common]
+                # Note: mkt_ret might be monthly while long_ret is daily. 
+                # If mismatch, we skip active return or need daily benchmark.
+                # For now, if periods != 12, we assume daily.
+                if periods_per_year == 252 and len(mkt_ret) < len(long_ret) * 0.5:
+                     # Mismatch frequency
+                     active_ann_ret = np.nan
+                else:
+                     active_ann_ret = annualized_return(active_ret, periods_per_year)
             else:
                 active_ann_ret = np.nan
         else:
@@ -225,11 +280,24 @@ class BacktestEngine:
         if self.benchmark_df is not None:
             bench_ret = self.benchmark_df.set_index('trade_date')['ret']
             
-        plot_cumulative_returns(
-            self.results['sorting']['quintile_returns'], 
-            self.results['sorting']['ls_returns'],
-            benchmark_returns=bench_ret
-        )
+        # 1. Cumulative Returns
+        bench_ret = None
+        if self.benchmark_df is not None:
+            bench_ret = self.benchmark_df.set_index('trade_date')['ret']
+            
+        # Use daily returns if available
+        if 'daily_sorting' in self.results:
+            plot_cumulative_returns(
+                self.results['daily_sorting']['quintile_daily_returns'], 
+                self.results['daily_sorting']['ls_daily_returns'],
+                benchmark_returns=bench_ret # Note: Benchmark might need to be daily too
+            )
+        else:
+            plot_cumulative_returns(
+                self.results['sorting']['quintile_returns'], 
+                self.results['sorting']['ls_returns'],
+                benchmark_returns=bench_ret
+            )
         
         # 2. IC Series
         plot_ic_series(self.results['ic']['IC_Series'])

@@ -183,14 +183,14 @@ def download_adj_factor():
     # `adj_close[1] = close[0] * (1 + r[1])`.
     # `adj_close[t] = close[0] * product(1+r[1]...1+r[t])`.
     
-from data_loader import load_data, RAW_DATA_DIR
+from data.data_loader import load_data, RAW_DATA_DIR
 
 def generate_adj_prices():
     print("正在生成后复权价格 (官方因子法)...")
     
     # 1. Load Daily Data
     print("正在加载日线数据...")
-    daily = load_data('daily', columns=['ts_code', 'trade_date', 'close', 'open', 'high', 'low', 'vol', 'amount'])
+    daily = load_data('daily', columns=['ts_code', 'trade_date', 'close', 'open', 'high', 'low', 'vol', 'amount', 'pct_chg', 'pre_close'], filter_universe=False)
     
     # 2. Load Adjustment Factors
     print("正在加载复权因子...")
