@@ -15,12 +15,22 @@ def plot_cumulative_returns(quintile_returns: pd.DataFrame, ls_returns: pd.Serie
     
     # Calculate cumulative returns
     # Fill NaNs with 0 (assuming cash) to avoid breaking the plot
-    cum_q1 = (1 + quintile_returns[1].fillna(0)).cumprod()
-    cum_q5 = (1 + quintile_returns[quintile_returns.columns[-1]].fillna(0)).cumprod()
+    
+    # Robustly get Q1 and Q5 (or min/max available)
+    cols = quintile_returns.columns
+    if cols.empty:
+        print("Warning: No quantile returns to plot.")
+        return
+
+    min_q = cols.min()
+    max_q = cols.max()
+    
+    cum_q1 = (1 + quintile_returns[min_q].fillna(0)).cumprod()
+    cum_q5 = (1 + quintile_returns[max_q].fillna(0)).cumprod()
     cum_ls = (1 + ls_returns.fillna(0)).cumprod()
     
-    plt.plot(cum_q1.index, cum_q1, label='Q1 (低)', linestyle='--')
-    plt.plot(cum_q5.index, cum_q5, label='Q5 (高)')
+    plt.plot(cum_q1.index, cum_q1, label=f'Q{min_q} (低)', linestyle='--')
+    plt.plot(cum_q5.index, cum_q5, label=f'Q{max_q} (高)')
     plt.plot(cum_ls.index, cum_ls, label='多空', color='red', linewidth=2)
     
     if benchmark_returns is not None:

@@ -37,7 +37,10 @@ class Beta(BaseFactor):
         # Align market returns to the wide dataframe index
         mkt_ret_series = mkt_ret_series.reindex(returns_wide.index)
         
-        window = 252
+        # Window size
+        # Data is monthly/sparse. 252 (daily) -> 0 results. 60 (5yr) -> 14 results.
+        # 24 (2yr) -> 552 results. Using 24.
+        window = 24
         
         # Calculate Rolling Covariance (Vectorized)
         # df.rolling().cov(series) broadcasts the series to all columns

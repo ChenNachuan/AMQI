@@ -1,5 +1,6 @@
 
 import pandas as pd
+import numpy as np
 from .analyzer import FactorAnalyzer
 from .metrics import annualized_return, annualized_volatility, sharpe_ratio, max_drawdown
 from .plotting import plot_cumulative_returns, plot_ic_series, plot_quantile_bar
@@ -147,20 +148,44 @@ class BacktestEngine:
         # Assuming Q5 is the Top Quantile (High Factor Value)
         # If factor is inverse (e.g. volatility), user might want Q1. 
         # But standard is Q5.
-        q5_ret = sort_metrics['quintile_returns'][5.0]
-        q5_perf = {
-            'Annualized Return': annualized_return(q5_ret),
-            'Sharpe Ratio': sharpe_ratio(q5_ret),
-            'Max Drawdown': max_drawdown(q5_ret)
-        }
+        quintile_rets = sort_metrics['quintile_returns']
         
-        # Active Return (Q5 - Benchmark)
-        if self.benchmark_df is not None:
-            # Align
-            common = q5_ret.index.intersection(mkt_ret.index)
-            active_ret = q5_ret.loc[common] - mkt_ret.loc[common]
-            active_ann_ret = annualized_return(active_ret)
+        # Robustly get Q5 (or max quantile)
+        target_q = 5.0
+        q5_ret = None
+        
+        if target_q in quintile_rets.columns:
+            q5_ret = quintile_rets[target_q]
+        elif 5 in quintile_rets.columns:
+            q5_ret = quintile_rets[5]
         else:
+            # Fallback to max available column if 5 is missing
+            if not quintile_rets.columns.empty:
+                max_q = quintile_rets.columns.max()
+                print(f"Warning: Q5 not found. Using Q{max_q} instead.")
+                q5_ret = quintile_rets[max_q]
+        
+        if q5_ret is not None:
+            q5_perf = {
+                'Annualized Return': annualized_return(q5_ret),
+                'Sharpe Ratio': sharpe_ratio(q5_ret),
+                'Max Drawdown': max_drawdown(q5_ret)
+            }
+            
+            # Active Return (Q5 - Benchmark)
+            if self.benchmark_df is not None:
+                # Align
+                common = q5_ret.index.intersection(mkt_ret.index)
+                active_ret = q5_ret.loc[common] - mkt_ret.loc[common]
+                active_ann_ret = annualized_return(active_ret)
+            else:
+                active_ann_ret = np.nan
+        else:
+            q5_perf = {
+                'Annualized Return': np.nan,
+                'Sharpe Ratio': np.nan,
+                'Max Drawdown': np.nan
+            }
             active_ann_ret = np.nan
         
         # Compile Summary

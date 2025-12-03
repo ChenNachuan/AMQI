@@ -87,13 +87,18 @@ def run_risk_factors():
     # ret = pct_chg / 100
     merged['ret'] = merged['pct_chg'] / 100.0
     
-    # Weighted average
-    def weighted_avg(x):
-        if x['total_mv'].sum() == 0:
-            return np.nan
-        return np.average(x['ret'], weights=x['total_mv'])
-        
-    mkt_ret = merged.groupby('trade_date').apply(weighted_avg).reset_index(name='mkt_ret')
+    # Weighted average (Vectorized)
+    # Drop NaNs in ret or total_mv for calculation
+    valid = merged.dropna(subset=['ret', 'total_mv'])
+    valid['w_ret'] = valid['ret'] * valid['total_mv']
+    
+    daily_sums = valid.groupby('trade_date')[['w_ret', 'total_mv']].sum()
+    daily_sums['mkt_ret'] = daily_sums['w_ret'] / daily_sums['total_mv']
+    
+    mkt_ret = daily_sums[['mkt_ret']].reset_index()
+    
+    print("mkt_ret stats:")
+    print(mkt_ret['mkt_ret'].describe())
     
     # Merge market return back
     merged = pd.merge(merged, mkt_ret, on='trade_date', how='left')
@@ -139,7 +144,7 @@ def run_risk_factors():
     
     # 7. Save
     print(f"Saving to {output_path}...")
-    final_df.to_parquet(output_path)
+    final_df.to_parquet(output_path, engine='fastparquet')
     print("Done.")
 
 if __name__ == "__main__":

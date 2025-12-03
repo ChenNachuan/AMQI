@@ -7,7 +7,7 @@ import sys
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from data_loader import load_data
+from data.data_loader import load_data
 from factor_library import Universe
 
 # Define Aggregation Rules
@@ -101,7 +101,7 @@ def finalize_dataset():
         raise FileNotFoundError("Factor files not found. Please run factor construction scripts first.")
         
     fund_df = pd.read_parquet(fund_path) # Monthly (Calendar Month End usually)
-    risk_df = pd.read_parquet(risk_path) # Daily
+    risk_df = pd.read_parquet(risk_path, engine='fastparquet') # Daily
     
     if os.path.exists(tech_path):
         print("Loading technical factors...")
@@ -116,9 +116,27 @@ def finalize_dataset():
         print(f"技术因子形状: {tech_df.shape}")
     
     # Load Market Cap for Filtering
-    print("正在加载 daily_basic 用于市值过滤...")
+    print("正在加载 daily_basic 用于市值过滤 (using fastparquet)...")
     # We need total_mv. We load daily and will downsample.
-    daily_basic = load_data('daily_basic', columns=['total_mv'], filter_universe=True)
+    # Use fastparquet directly to avoid pyarrow issues
+    from data.data_loader import RAW_DATA_DIR, WHITELIST_PATH
+    daily_basic_path = os.path.join(RAW_DATA_DIR, 'daily_basic.parquet')
+    
+    try:
+        daily_basic = pd.read_parquet(daily_basic_path, engine='fastparquet', columns=['ts_code', 'trade_date', 'total_mv'])
+    except Exception as e:
+        print(f"fastparquet loading failed: {e}. Trying without columns...")
+        daily_basic = pd.read_parquet(daily_basic_path, engine='fastparquet')
+        daily_basic = daily_basic[['ts_code', 'trade_date', 'total_mv']]
+
+    # Filter by whitelist
+    print("Filtering daily_basic by whitelist...")
+    whitelist = pd.read_parquet(WHITELIST_PATH, columns=['ts_code', 'trade_date'])
+    # Ensure datetime
+    daily_basic['trade_date'] = pd.to_datetime(daily_basic['trade_date'])
+    whitelist['trade_date'] = pd.to_datetime(whitelist['trade_date'])
+    
+    daily_basic = pd.merge(whitelist, daily_basic, on=['ts_code', 'trade_date'], how='inner')
     
     # 2. Pre-processing & Month Key Creation for Fundamental
     print("正在为基本面数据创建月份键...")
@@ -198,8 +216,15 @@ def finalize_dataset():
     merged = merged.dropna(subset=['next_ret'])
     
     # Drop auxiliary columns
+    # Drop auxiliary columns
     cols_to_drop = ['month', 'fund_date', 'total_mv']
-    merged = merged.drop(columns=[c for c in cols_to_drop if c in merged.columns])
+    # Ensure we drop them even if they are not in columns (ignore errors)
+    merged = merged.drop(columns=cols_to_drop, errors='ignore')
+    
+    # Verify month is gone
+    if 'month' in merged.columns:
+        print("Warning: 'month' column still present. Forcing drop.")
+        del merged['month']
     
     # Set index
     merged = merged.set_index(['trade_date', 'ts_code']).sort_index()
