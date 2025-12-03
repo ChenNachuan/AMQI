@@ -22,10 +22,9 @@ class IntCoverage(BaseFactor):
         self.check_dependencies(df)
         
         # Calculate TTM for OCF and Interest Expense (Flow variables)
-        df = convert_ytd_to_ttm(df, 'n_cashflow_act')
-        df = convert_ytd_to_ttm(df, 'int_exp')
+        # Already converted to TTM in construct_fundamental_factors.py
         
-        factor_value = df['n_cashflow_act_ttm'] / df['int_exp_ttm']
+        factor_value = df['n_cashflow_act'] / df['int_exp']
         factor_value = factor_value.replace([np.inf, -np.inf], np.nan)
         
         result = pd.DataFrame({

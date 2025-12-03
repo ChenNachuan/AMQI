@@ -95,13 +95,14 @@ class FactorAnalyzer:
             
         return np.mean(turnover_series) if turnover_series else np.nan
 
-    def calc_factor_returns(self, weighting: str = 'vw', quantiles: int = 5) -> dict:
+    def calc_factor_returns(self, weighting: str = 'vw', quantiles: int = 5, direction: str = 'positive') -> dict:
         """
         Calculate Portfolio Sorting returns.
         
         Args:
             weighting: 'vw' (value-weighted) or 'ew' (equal-weighted).
             quantiles: Number of buckets (default 5).
+            direction: 'positive' (Long Q5, Short Q1) or 'negative' (Long Q1, Short Q5).
             
         Returns:
             Dict with 'quintile_returns' (DataFrame) and 'ls_returns' (Series).
@@ -147,12 +148,23 @@ class FactorAnalyzer:
         quintile_rets = self.df.groupby(['trade_date', 'quantile']).apply(w_avg).unstack()
         
         # 3. Long-Short Return
-        # Q5 - Q1
         # Check if we have Q1 and Q5
-        if 1.0 in quintile_rets.columns and float(quantiles) in quintile_rets.columns:
-            ls_ret = quintile_rets[float(quantiles)] - quintile_rets[1.0]
-        elif 1 in quintile_rets.columns and quantiles in quintile_rets.columns:
-             ls_ret = quintile_rets[quantiles] - quintile_rets[1]
+        q_min = 1
+        q_max = quantiles
+        
+        # Handle column names being float or int
+        cols = quintile_rets.columns
+        if not cols.empty:
+             q_min = cols.min()
+             q_max = cols.max()
+        
+        if q_min in cols and q_max in cols:
+            if direction == 'positive':
+                # Long Q5, Short Q1
+                ls_ret = quintile_rets[q_max] - quintile_rets[q_min]
+            else:
+                # Long Q1, Short Q5
+                ls_ret = quintile_rets[q_min] - quintile_rets[q_max]
         else:
             print(f"Warning: Missing quantiles in returns. Columns: {quintile_rets.columns}")
             ls_ret = pd.Series(0.0, index=quintile_rets.index) # Return 0s instead of NaN to avoid crash, but warn

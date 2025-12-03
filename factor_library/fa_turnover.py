@@ -22,12 +22,12 @@ class FATurnover(BaseFactor):
         self.check_dependencies(df)
         
         # Calculate TTM for Revenue (Flow variable)
-        df = convert_ytd_to_ttm(df, 'revenue')
+        # Already converted to TTM in construct_fundamental_factors.py
         
         # Average Fixed Assets (Stock variable)
         avg_fa = df.groupby('ts_code')['fix_assets'].rolling(4).mean().reset_index(level=0, drop=True)
         
-        factor_value = df['revenue_ttm'] / avg_fa
+        factor_value = df['revenue'] / avg_fa
         factor_value = factor_value.replace([np.inf, -np.inf], np.nan)
         
         result = pd.DataFrame({

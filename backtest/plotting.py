@@ -1,6 +1,7 @@
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 import seaborn as sns
 
 # Set Chinese font
@@ -9,7 +10,7 @@ plt.rcParams['axes.unicode_minus'] = False
 
 def plot_cumulative_returns(quintile_returns: pd.DataFrame, ls_returns: pd.Series, benchmark_returns: pd.Series = None):
     """
-    Plot cumulative returns of Q1, Q5, Long-Short, and Benchmark.
+    Plot cumulative log returns of Q1, Q5, Long-Short, and Benchmark.
     """
     plt.figure(figsize=(12, 6))
     
@@ -25,9 +26,10 @@ def plot_cumulative_returns(quintile_returns: pd.DataFrame, ls_returns: pd.Serie
     min_q = cols.min()
     max_q = cols.max()
     
-    cum_q1 = (1 + quintile_returns[min_q].fillna(0)).cumprod()
-    cum_q5 = (1 + quintile_returns[max_q].fillna(0)).cumprod()
-    cum_ls = (1 + ls_returns.fillna(0)).cumprod()
+    # Calculate Log Cumulative Returns: ln(cumprod(1+r))
+    cum_q1 = np.log((1 + quintile_returns[min_q].fillna(0)).cumprod())
+    cum_q5 = np.log((1 + quintile_returns[max_q].fillna(0)).cumprod())
+    cum_ls = np.log((1 + ls_returns.fillna(0)).cumprod())
     
     plt.plot(cum_q1.index, cum_q1, label=f'Q{min_q} (低)', linestyle='--')
     plt.plot(cum_q5.index, cum_q5, label=f'Q{max_q} (高)')
@@ -38,12 +40,12 @@ def plot_cumulative_returns(quintile_returns: pd.DataFrame, ls_returns: pd.Serie
         common_idx = cum_ls.index.intersection(benchmark_returns.index)
         if not common_idx.empty:
             bench_aligned = benchmark_returns.loc[common_idx].fillna(0)
-            cum_bench = (1 + bench_aligned).cumprod()
+            cum_bench = np.log((1 + bench_aligned).cumprod())
             plt.plot(cum_bench.index, cum_bench, label='基准 (沪深300)', color='black', linestyle='-.', alpha=0.7)
     
-    plt.title('累计收益率：Q1 vs Q5 vs 多空 vs 基准')
+    plt.title('累计对数收益率：Q1 vs Q5 vs 多空 vs 基准')
     plt.xlabel('日期')
-    plt.ylabel('累计收益 (1.0 = 基数)')
+    plt.ylabel('累计对数收益')
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.show()

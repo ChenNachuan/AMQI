@@ -15,16 +15,16 @@ class APDays(BaseFactor):
         
     @property
     def required_fields(self) -> list:
-        return ['total_cogs', 'accounts_payable']
+        return ['total_cogs', 'acct_payable']
         
     def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
         self.check_dependencies(df)
         
-        # TTM COGS
-        cogs_ttm = df.groupby('ts_code')['total_cogs'].rolling(4).sum().reset_index(level=0, drop=True)
+        # TTM COGS (Already TTM from construct_fundamental_factors.py)
+        cogs_ttm = df['total_cogs']
         
         # Average Accounts Payable
-        avg_ap = df.groupby('ts_code')['accounts_payable'].rolling(4).mean().reset_index(level=0, drop=True)
+        avg_ap = df.groupby('ts_code')['acct_payable'].rolling(4).mean().reset_index(level=0, drop=True)
         
         ap_turnover = cogs_ttm / avg_ap
         

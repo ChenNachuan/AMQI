@@ -22,10 +22,9 @@ class TaxRate(BaseFactor):
         self.check_dependencies(df)
         
         # Calculate TTM for Income Tax and Total Profit (Flow variables)
-        df = convert_ytd_to_ttm(df, 'income_tax')
-        df = convert_ytd_to_ttm(df, 'total_profit')
+        # Already converted to TTM in construct_fundamental_factors.py
         
-        factor_value = df['income_tax_ttm'] / df['total_profit_ttm']
+        factor_value = df['income_tax'] / df['total_profit']
         factor_value = factor_value.replace([np.inf, -np.inf], np.nan)
         
         result = pd.DataFrame({

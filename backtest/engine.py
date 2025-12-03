@@ -98,26 +98,29 @@ class BacktestEngine:
             import traceback
             traceback.print_exc()
         
-    def run_analysis(self, weighting: str = 'vw') -> dict:
+    def run_analysis(self, weighting: str = 'vw', direction: str = 'positive') -> dict:
         """
         Run the full analysis pipeline.
         Args:
             weighting: 'vw' (value-weighted) or 'ew' (equal-weighted).
+            direction: 'positive' (Long Q5, Short Q1) or 'negative' (Long Q1, Short Q5).
         Returns:
             Summary dictionary.
         """
-        print(f"正在运行因子分析：{self.factor_name}...")
+        print(f"正在运行因子分析：{self.factor_name} (方向: {direction})...")
         
         # 1. IC Analysis
         ic_metrics = self.analyzer.calc_ic()
         self.results['ic'] = ic_metrics
         
         # 2. Portfolio Sorting
-        sort_metrics = self.analyzer.calc_factor_returns(weighting=weighting)
+        sort_metrics = self.analyzer.calc_factor_returns(weighting=weighting, direction=direction)
         self.results['sorting'] = sort_metrics
         
-        # 3. Turnover (Q5)
-        turnover = self.analyzer.calc_turnover(quantiles=5)
+        # 3. Turnover (Long Portfolio)
+        # If positive, Long Q5. If negative, Long Q1.
+        long_q = 5 if direction == 'positive' else 1
+        turnover = self.analyzer.calc_turnover(quantiles=long_q)
         
         # 4. Fama-MacBeth
         fm_metrics = self.analyzer.run_fama_macbeth()
@@ -144,44 +147,39 @@ class BacktestEngine:
             'Max Drawdown': max_drawdown(ls_ret)
         }
         
-        # 7. Long-Only Performance (Q5)
-        # Assuming Q5 is the Top Quantile (High Factor Value)
-        # If factor is inverse (e.g. volatility), user might want Q1. 
-        # But standard is Q5.
+        # 7. Long-Only Performance
+        # If direction is positive, use max quantile (Q5). If negative, use min quantile (Q1).
         quintile_rets = sort_metrics['quintile_returns']
         
-        # Robustly get Q5 (or max quantile)
-        target_q = 5.0
-        q5_ret = None
-        
-        if target_q in quintile_rets.columns:
-            q5_ret = quintile_rets[target_q]
-        elif 5 in quintile_rets.columns:
-            q5_ret = quintile_rets[5]
+        target_q = None
+        if not quintile_rets.columns.empty:
+            if direction == 'positive':
+                target_q = quintile_rets.columns.max()
+                q_label = f"Q{target_q}"
+            else:
+                target_q = quintile_rets.columns.min()
+                q_label = f"Q{target_q}"
         else:
-            # Fallback to max available column if 5 is missing
-            if not quintile_rets.columns.empty:
-                max_q = quintile_rets.columns.max()
-                print(f"Warning: Q5 not found. Using Q{max_q} instead.")
-                q5_ret = quintile_rets[max_q]
+            q_label = "Q?"
         
-        if q5_ret is not None:
-            q5_perf = {
-                'Annualized Return': annualized_return(q5_ret),
-                'Sharpe Ratio': sharpe_ratio(q5_ret),
-                'Max Drawdown': max_drawdown(q5_ret)
+        if target_q is not None and target_q in quintile_rets.columns:
+            long_ret = quintile_rets[target_q]
+            long_perf = {
+                'Annualized Return': annualized_return(long_ret),
+                'Sharpe Ratio': sharpe_ratio(long_ret),
+                'Max Drawdown': max_drawdown(long_ret)
             }
             
-            # Active Return (Q5 - Benchmark)
+            # Active Return (Long - Benchmark)
             if self.benchmark_df is not None:
                 # Align
-                common = q5_ret.index.intersection(mkt_ret.index)
-                active_ret = q5_ret.loc[common] - mkt_ret.loc[common]
+                common = long_ret.index.intersection(mkt_ret.index)
+                active_ret = long_ret.loc[common] - mkt_ret.loc[common]
                 active_ann_ret = annualized_return(active_ret)
             else:
                 active_ann_ret = np.nan
         else:
-            q5_perf = {
+            long_perf = {
                 'Annualized Return': np.nan,
                 'Sharpe Ratio': np.nan,
                 'Max Drawdown': np.nan
@@ -201,11 +199,11 @@ class BacktestEngine:
             'FM回归t值': fm_metrics['FM_t_stat'],
             
             # Long-Only Performance (Investable)
-            'Q5年化收益': q5_perf['Annualized Return'],
-            'Q5夏普比率': q5_perf['Sharpe Ratio'],
-            'Q5最大回撤': q5_perf['Max Drawdown'],
-            'Q5换手率': turnover,
-            'Q5超额收益': active_ann_ret,
+            f'{q_label}年化收益': long_perf['Annualized Return'],
+            f'{q_label}夏普比率': long_perf['Sharpe Ratio'],
+            f'{q_label}最大回撤': long_perf['Max Drawdown'],
+            f'{q_label}换手率': turnover,
+            f'{q_label}超额收益': active_ann_ret,
             
             # Risk Adjustment
             'Alpha': capm_metrics['Alpha'],

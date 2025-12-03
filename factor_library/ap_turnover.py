@@ -18,19 +18,19 @@ class APTurnover(BaseFactor):
     def required_fields(self) -> list:
         # COGS might be 'total_cogs' or 'oper_cost' depending on data source. 
         # User specified 'total_cogs'.
-        return ['total_cogs', 'accounts_payable']
+        return ['total_cogs', 'acct_payable']
         
     def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
         self.check_dependencies(df)
         
         # Calculate TTM for COGS (Flow variable)
-        df = convert_ytd_to_ttm(df, 'total_cogs')
+        # Already converted to TTM in construct_fundamental_factors.py
         
         # Average Accounts Payable (Stock variable)
         # Using rolling mean of last 4 quarters to represent the average level during the TTM period
-        avg_ap = df.groupby('ts_code')['accounts_payable'].rolling(4).mean().reset_index(level=0, drop=True)
+        avg_ap = df.groupby('ts_code')['acct_payable'].rolling(4).mean().reset_index(level=0, drop=True)
         
-        factor_value = df['total_cogs_ttm'] / avg_ap
+        factor_value = df['total_cogs'] / avg_ap
         factor_value = factor_value.replace([np.inf, -np.inf], np.nan)
         
         result = pd.DataFrame({

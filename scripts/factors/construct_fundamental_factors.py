@@ -48,25 +48,19 @@ def construct_factors():
     
     # Calculate Monthly Return (ret) and Size (size)
     # Group by ts_code and month
-    def get_monthly_market(x):
-        d = {}
-        d['close'] = x['close'].iloc[-1]
-        d['total_mv'] = x['total_mv'].iloc[-1] # Month-end market cap
-        if 'pb' in x.columns:
-            d['pb'] = x['pb'].iloc[-1]
-        d['trade_date'] = x['trade_date'].iloc[-1] # Month-end date
-        
-        # Calculate monthly return: P_t / P_{t-1} - 1
-        # We can approximate this by taking the last close of this month / last close of prev month - 1
-        # But here we are inside a groupby, so we only have this month's data.
-        # Better approach: Calculate daily returns and compound them, or just take pct_change of monthly close later.
-        return pd.Series(d)
-
-    monthly_market = market_data.groupby(['ts_code', 'month']).apply(get_monthly_market).reset_index()
+    print("正在将市场数据重采样为月频 (Vectorized)...")
     
-    # Calculate 'ret' (Monthly Return)
-    # Sort by ts_code and month to ensure correct shift
-    monthly_market = monthly_market.sort_values(['ts_code', 'month'])
+    # 构造聚合字典
+    agg_dict = {
+        'close': 'last',
+        'total_mv': 'last',
+        'trade_date': 'last'
+    }
+    # 如果有 PB 列，也取最后一天
+    if 'pb' in market_data.columns:
+        agg_dict['pb'] = 'last'
+        
+    monthly_market = market_data.groupby(['ts_code', 'month']).agg(agg_dict).reset_index()
     monthly_market['ret'] = monthly_market.groupby('ts_code')['close'].pct_change()
     
     # Rename total_mv to size for factor consistency
@@ -159,15 +153,18 @@ def construct_factors():
     cols_to_convert = list(set(cols_to_convert))
     
     if cols_to_convert:
-        financial_df = convert_ytd_to_ttm(financial_df, cols_to_convert)
-        
-        # Now replace original columns with TTM columns for factor calculation
-        # The factor classes usually expect the standard column names (e.g. 'n_income'), not 'n_income_ttm'.
-        # So we should rename TTM columns back to original names, or update factor classes.
-        # Updating factor classes is cleaner but more work.
-        # Swapping columns here is easier and ensures all downstream logic uses TTM.
-        # Let's swap: Rename 'col' -> 'col_ytd', 'col_ttm' -> 'col'.
-        
+        print(f"需要转换的列数: {len(cols_to_convert)}")
+        # 必须循环处理每一列，因为 convert_ytd_to_ttm 一次只接受一个字符串列名
+        for i, col in enumerate(cols_to_convert):
+            if i % 5 == 0:
+                print(f"  正在处理第 {i+1}/{len(cols_to_convert)} 列: {col} ...")
+            try:
+                financial_df = convert_ytd_to_ttm(financial_df, col)
+            except Exception as e:
+                print(f"  转换列 {col} 失败: {e}")
+                
+        # 批量重命名：将原始列改为 _ytd，将 _ttm 列改为原始列名
+        # 这样下游因子计算代码（如 n_income）不需要改名就能直接用上 TTM 数据
         rename_dict = {}
         for col in cols_to_convert:
             if f'{col}_ttm' in financial_df.columns:
@@ -175,7 +172,7 @@ def construct_factors():
                 rename_dict[f'{col}_ttm'] = col
                 
         financial_df = financial_df.rename(columns=rename_dict)
-        print(f"已将 {len(cols_to_convert)} 列转换为 TTM。")
+        print(f"已完成 TTM 转换。")
     else:
         print("没有需要转换为 TTM 的列。")
         
