@@ -33,12 +33,14 @@ The project follows a modular "Kitchen & Recipe" architecture:
     -   `plotting.py`: Visualization tools.
     -   `engine.py`: Facade for easy usage.
 
+
 -   **`scripts/` (The Kitchen)**: Execution scripts that load data, use recipes, and produce output.
+    -   `utils/financial_utils.py`: **[NEW]** Core financial logic (TTM conversion, YoY growth).
+    -   `download_ext_data.py`: **[NEW]** Downloads external data (Indices, Macro, Adj Factors).
     -   `construct_fundamental_factors.py`: Calculates monthly fundamental factors.
     -   `run_risk_factors.py`: Calculates daily risk factors.
     -   `finalize_dataset.py`: Merges factors, applies filters, and creates the final dataset.
     -   `test_backtest.py`: Verifies the backtest engine.
-    -   `../data/data_loader/download_ext_data.py`: Downloads external data (Indices, Macro).
 
 -   **`data/` (The Pantry)**: Data storage.
     -   `raw_data/`: Raw parquet files from Tushare (Stocks, Indices, Macro).
@@ -68,15 +70,15 @@ To reproduce the dataset from scratch:
 
 0.  **Download Data** (Optional):
     ```bash
-    python data/data_loader/download_ext_data.py
+    python scripts/download_ext_data.py
     ```
 
 2.  **Construct Factors**:
     ```bash
-    # Fundamental Factors (Monthly)
+    # Fundamental Factors (Monthly) - Uses TTM Logic
     python scripts/construct_fundamental_factors.py
     
-    # Risk Factors (Daily)
+    # Risk Factors (Daily) - Vectorized
     python scripts/run_risk_factors.py
     ```
 
@@ -98,6 +100,8 @@ To reproduce the dataset from scratch:
 
 ## Key Design Decisions
 
+-   **Financial Logic (TTM)**: All fundamental factors use **Trailling Twelve Months (TTM)** logic derived from YTD reports to avoid double-counting and ensure comparability.
+-   **Vectorization**: Risk factors (Beta, Volatility) use optimized matrix operations for high performance.
 -   **Frequency**: Fundamental factors are Monthly; Risk factors are Daily. They are aligned (Left Join) in the final step.
 -   **Filtering**: A dynamic 30% Market Cap filter is applied during the final assembly to ensure tradability.
 -   **Target**: `next_ret` is the future 1-month return ($R_{t+1}$), aligned for predictive modeling.
