@@ -46,7 +46,10 @@ def merge_factors():
     # 2. Load Market Cap for Filtering
     print("Loading daily_basic for market cap filtering...")
     # We need total_mv at monthly frequency to match the factors
-    daily_basic = pd.read_parquet(daily_basic_path, columns=['ts_code', 'trade_date', 'total_mv'])
+    try:
+        daily_basic = pd.read_parquet(daily_basic_path, columns=['ts_code', 'trade_date', 'total_mv'], engine='fastparquet')
+    except:
+        daily_basic = pd.read_parquet(daily_basic_path, columns=['ts_code', 'trade_date', 'total_mv'])
     daily_basic['trade_date'] = pd.to_datetime(daily_basic['trade_date'].astype(str))
     
     # Resample total_mv to monthly (end of month)
@@ -54,6 +57,53 @@ def merge_factors():
     daily_basic['month'] = daily_basic['trade_date'].dt.to_period('M')
     daily_basic = daily_basic.sort_values(['ts_code', 'trade_date'])
     monthly_mv = daily_basic.groupby(['ts_code', 'month']).last().reset_index()
+
+    # 2.5 Load Adjusted Prices
+    print("Loading adjusted prices...")
+    daily_adj_path = os.path.join(raw_data_dir.replace('raw_data', 'data_cleaner'), 'daily_adj.parquet')
+    if os.path.exists(daily_adj_path):
+        try:
+            daily_adj = pd.read_parquet(daily_adj_path, engine='fastparquet')
+        except:
+            daily_adj = pd.read_parquet(daily_adj_path)
+        
+        # Ensure trade_date is datetime
+        daily_adj['trade_date'] = pd.to_datetime(daily_adj['trade_date'].astype(str))
+        daily_adj['month'] = daily_adj['trade_date'].dt.to_period('M')
+        
+        # Select columns (hfq_close, hfq_open, etc.)
+        # We only want hfq columns to avoid duplicates if 'close' also exists
+        cols = ['ts_code', 'trade_date', 'month', 'hfq_close', 'hfq_open', 'hfq_high', 'hfq_low', 'hfq_vol']
+        # Check if they exist
+        cols = [c for c in cols if c in daily_adj.columns]
+        daily_adj = daily_adj[cols]
+        
+        # Resample to monthly (last)
+        monthly_prices = daily_adj.groupby(['ts_code', 'month']).last().reset_index()
+        
+        # Rename hfq columns to standard if needed
+        rename_map = {
+            'hfq_close': 'close', 'hfq_open': 'open', 'hfq_high': 'high', 'hfq_low': 'low', 'hfq_vol': 'vol'
+        }
+        monthly_prices = monthly_prices.rename(columns=rename_map)
+        
+        # Merge with monthly_mv
+        # monthly_mv has total_mv. monthly_prices has OHLCV.
+        # Both have ts_code and month.
+        # Note: trade_date in both is the last date of the month (from .last()).
+        # But they might differ slightly if data is missing?
+        # Let's merge on ['ts_code', 'month']
+        
+        monthly_mv = pd.merge(monthly_mv, monthly_prices, on=['ts_code', 'month'], how='left', suffixes=('', '_price'))
+        # If trade_date exists in both, we might have trade_date and trade_date_price.
+        # We prefer the one from daily_basic as it aligns with fundamental factors usually?
+        # Actually, fundamental factors trade_date is month end.
+        # Let's keep trade_date from monthly_mv.
+        if 'trade_date_price' in monthly_mv.columns:
+            monthly_mv = monthly_mv.drop(columns=['trade_date_price'])
+            
+    else:
+        print("Warning: Adjusted daily prices not found.")
     
     # 3. Merge Factors
     print("Merging datasets...")
@@ -75,7 +125,30 @@ def merge_factors():
     # Merge with Market Cap (for filtering)
     # Note: merged has 'trade_date' which is month-end. monthly_mv has 'trade_date' which is also month-end.
     # So we can join on trade_date and ts_code.
-    merged = pd.merge(merged, monthly_mv[['ts_code', 'trade_date', 'total_mv']], on=['ts_code', 'trade_date'], how='left')
+    # Merge with Market Cap and Prices
+    # Note: merged has 'trade_date' which is month-end. monthly_mv has 'trade_date' which is also month-end.
+    # So we can join on trade_date and ts_code.
+    # monthly_mv now contains total_mv AND prices (close, open, etc.)
+    
+    # Identify columns to merge from monthly_mv
+    # We want total_mv, close, open, high, low, vol
+    # But only if they are not already in merged
+    cols_to_merge = ['ts_code', 'trade_date']
+    
+    # Check total_mv
+    if 'total_mv' not in merged.columns and 'total_mv' in monthly_mv.columns:
+        cols_to_merge.append('total_mv')
+        
+    price_cols = ['close', 'open', 'high', 'low', 'vol']
+    for c in price_cols:
+        if c in monthly_mv.columns and c not in merged.columns:
+            cols_to_merge.append(c)
+            
+    if len(cols_to_merge) > 2: # More than just keys
+        print(f"Merging additional columns: {cols_to_merge[2:]}")
+        merged = pd.merge(merged, monthly_mv[cols_to_merge], on=['ts_code', 'trade_date'], how='left')
+    else:
+        print("No additional price/mv columns to merge.")
     
     print(f"Merged shape before filtering: {merged.shape}")
     

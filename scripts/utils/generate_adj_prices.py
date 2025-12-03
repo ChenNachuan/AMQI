@@ -183,73 +183,78 @@ def download_adj_factor():
     # `adj_close[1] = close[0] * (1 + r[1])`.
     # `adj_close[t] = close[0] * product(1+r[1]...1+r[t])`.
     
-    # So we group by ts_code, take `(1+pct_chg/100)`.
-    # Set the first value to 1.0 (because `pct_chg` on day 0 is usually vs IPO price, but we want to start compounding from close[0]).
-    # Actually, if we want `adj_close` to track `close` initially:
-    # We can just normalize `adj_close` such that the last value equals `close` (Backward adjustment)?
-    # Or first value equals `close` (Forward adjustment).
-    # Forward adjustment is better for backtesting (no lookahead bias in scale, though scale doesn't matter for returns).
-    # Tushare `qfq` (Forward) usually adjusts past prices down. `hfq` (Backward) adjusts past prices up?
-    # Actually `qfq` (Pre-adjusted) means current price is real, past is adjusted.
-    # `hfq` (Post-adjusted) means past price is real (IPO), current is adjusted.
+from data_loader import load_data, RAW_DATA_DIR
+
+def generate_adj_prices():
+    print("正在生成后复权价格 (官方因子法)...")
     
-    # Let's use Forward Adjustment (QFQ) logic:
-    # `adj_factor` = `cumulative_product_of_splits`.
-    # But we don't have splits.
+    # 1. Load Daily Data
+    print("正在加载日线数据...")
+    daily = load_data('daily', columns=['ts_code', 'trade_date', 'close', 'open', 'high', 'low', 'vol', 'amount'])
     
-    # Let's use the `pct_chg` reconstruction method.
-    # `adj_close` = `initial_close` * `cumprod(1 + pct_chg/100)`
-    # But we need to handle the first day correctly.
-    # If `pct_chg` on day 0 is valid (e.g. IPO day return), then `adj_close[0]` should reflect that?
-    # No, `adj_close[0]` is just a starting point.
-    # Let's set `adj_close[0] = close[0]`.
-    # Then `adj_close[t] = adj_close[t-1] * (1 + pct_chg[t]/100)`.
+    # 2. Load Adjustment Factors
+    print("正在加载复权因子...")
+    # 2. Load Adjustment Factors
+    print("正在加载复权因子...")
+    try:
+        adj_factor = load_data('adj_factor')
+    except Exception as e:
+        print(f"加载复权因子失败: {e}")
+        return
+    # Ensure columns
+    if 'adj_factor' not in adj_factor.columns:
+        print("错误: 文件中缺少 'adj_factor' 列。")
+        return
+        
+    # 3. Merge
+    print("正在合并日线数据与复权因子...")
+    # Ensure dates are datetime
+    daily['trade_date'] = pd.to_datetime(daily['trade_date'])
+    adj_factor['trade_date'] = pd.to_datetime(adj_factor['trade_date'])
     
-    # Implementation:
-    # 1. `returns = 1 + df['pct_chg'] / 100`
-    # 2. Set first return of each stock to 1.0 (to avoid applying IPO return to the base).
-    #    Actually, if we want `adj_close[0] = close[0]`, we don't multiply by `returns[0]`.
-    #    We multiply `close[0]` by `cumprod(returns[1:]`.
+    merged = pd.merge(daily, adj_factor[['ts_code', 'trade_date', 'adj_factor']], 
+                      on=['ts_code', 'trade_date'], how='left')
     
-    # Let's do:
-    # `df['factor'] = 1 + df['pct_chg'] / 100`
-    # `df.loc[df.groupby('ts_code').head(1).index, 'factor'] = 1.0`
-    # `df['cum_factor'] = df.groupby('ts_code')['factor'].cumprod()`
-    # `df['adj_close'] = df['cum_factor'] * df.groupby('ts_code')['close'].transform('first')`
+    # Fill missing adj_factor with 1.0 (or forward fill if appropriate, but 1.0 is safer for new stocks)
+    # Actually, for backward adjustment, if adj_factor is missing, it usually means no dividends/splits, so 1.0 might be wrong if it's just missing data.
+    # But Tushare usually provides it. Let's forward fill per stock just in case, then fill 1.
+    merged['adj_factor'] = merged.groupby('ts_code')['adj_factor'].ffill().fillna(1.0)
     
-    # This gives us a continuous price series that respects `pct_chg`.
-    # This is effectively `hfq` (Post-adjusted) because it starts from IPO price and goes up.
-    # `qfq` would end at current close.
-    # For returns calculation, `hfq` vs `qfq` doesn't matter, as `pct_change` is invariant.
+    # 4. Calculate Backward Adjusted Prices (HFQ)
+    # Formula: hfq_price = price * adj_factor
+    print("正在计算后复权 (HFQ) 价格...")
+    cols = ['close', 'open', 'high', 'low']
+    for col in cols:
+        merged[f'hfq_{col}'] = merged[col] * merged['adj_factor']
+        
+    # Pass through vol and amount (unadjusted or adjusted? usually volume is adjusted by division, but amount is same)
+    # Tushare hfq usually only adjusts prices.
+    # Let's keep vol and amount as is, but maybe rename them to hfq_vol? No, just keep them.
+    # But construct_technical_factors expects 'vol'.
+    # So we should save them.
+    merged['hfq_vol'] = merged['vol'] # Volume is usually adjusted? split -> volume doubles. So hfq_vol = vol * adj_factor?
+    # Wait, if price drops by half, volume doubles.
+    # adj_factor increases over time (accumulates splits).
+    # hfq_price = price * adj_factor.
+    # hfq_vol = vol / adj_factor?
+    # Let's check standard practice.
+    # Usually we want "comparable" volume.
+    # If we just keep raw volume, it has jumps.
+    # But technical indicators often use raw volume (e.g. OBV).
+    # However, for price-volume trend, adjusted volume is better.
+    # Let's calculate hfq_vol = vol / adj_factor.
+    merged['hfq_vol'] = merged['vol'] / merged['adj_factor']
+    merged['hfq_amount'] = merged['amount'] # Amount (money) is invariant to splits.
+        
+    # 5. Save
+    output_path = os.path.join(os.path.dirname(RAW_DATA_DIR), 'data_cleaner', 'daily_adj.parquet')
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
-    # So we will create `adj_close` column and save it to a new parquet `daily_adjusted.parquet`.
-    
-    # Apply logic
-    df['factor'] = 1 + df['pct_chg'].fillna(0) / 100
-    
-    # Set first factor to 1.0
-    # We can use a mask
-    # Is there a faster way than groupby head?
-    # `df.duplicated('ts_code', keep='first')` is False for first items.
-    is_first = ~df.duplicated('ts_code', keep='first')
-    df.loc[is_first, 'factor'] = 1.0
-    
-    print("Calculating cumulative product...")
-    df['cum_factor'] = df.groupby('ts_code')['factor'].cumprod()
-    
-    print("Calculating adj_close...")
-    first_closes = df.loc[is_first].set_index('ts_code')['close']
-    # Map first close back
-    df['first_close'] = df['ts_code'].map(first_closes)
-    df['adj_close'] = df['cum_factor'] * df['first_close']
-    
-    # Save
-    output_path = os.path.join(base_dir, 'data', 'raw_data', 'daily_adjusted.parquet')
-    print(f"Saving to {output_path}...")
-    df[['ts_code', 'trade_date', 'adj_close']].to_parquet(output_path)
-    
-    print("Done.")
-    print(df[['ts_code', 'trade_date', 'close', 'adj_close', 'pct_chg']].head())
+    print(f"正在保存至 {output_path}...")
+    merged.to_parquet(output_path)
+    print("完成。")
+    print("样例输出:")
+    print(merged[['ts_code', 'trade_date', 'close', 'adj_factor', 'hfq_close']].tail())
 
 if __name__ == "__main__":
-    download_adj_factor()
+    generate_adj_prices()

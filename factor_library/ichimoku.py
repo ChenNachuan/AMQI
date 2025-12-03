@@ -44,8 +44,9 @@ class Ichimoku(BaseFactor):
         
         kijun_sen = (period_high + period_low) / 2
         
-        # Factor: Close - Kijun_sen
-        factor_value = df['close'] - kijun_sen
+        # Factor: (Close - Kijun_sen) / Close
+        # Normalize to make it comparable across price levels
+        factor_value = (df['close'] - kijun_sen) / df['close']
         
         # Prepare result
         result = pd.DataFrame({

@@ -5,31 +5,44 @@ import os
 import sys
 
 # Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# Add project root to path
+root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(root_path)
+print(f"Added {root_path} to sys.path")
+print(f"sys.path: {sys.path}")
 
 from data.data_loader import load_data, RAW_DATA_DIR, WHITELIST_PATH
 from factor_library import (
     OCFtoNI, APTurnover, APDays, FATurnover, IntCoverage, TaxRate,
     OpAssetChg, EquityRatio, NOAT, FARatio
 )
+from scripts.utils.financial_utils import convert_ytd_to_ttm
 
 def construct_factors():
-    print("Constructing fundamental factors...")
+    print("正在构建基本面因子...")
     
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     factors_dir = os.path.join(base_dir, 'data', 'factors')
     os.makedirs(factors_dir, exist_ok=True)
     
     # 1. Load Market Data (Daily) for alignment and basic factors
-    print("Loading daily market data...")
-    daily = load_data('daily', columns=['close'])
-    daily_basic = load_data('daily_basic', columns=['total_mv'])
+    print("正在加载市场日线数据 (后复权)...")
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    daily_adj_path = os.path.join(base_dir, 'data', 'data_cleaner', 'daily_adj.parquet')
+    
+    try:
+        daily = pd.read_parquet(daily_adj_path, columns=['ts_code', 'trade_date', 'hfq_close'], engine='fastparquet')
+    except Exception:
+        daily = pd.read_parquet(daily_adj_path, columns=['ts_code', 'trade_date', 'hfq_close'])
+        
+    daily = daily.rename(columns={'hfq_close': 'close'})
+    daily_basic = load_data('daily_basic', columns=['total_mv', 'pb'])
     
     # Merge daily and daily_basic
     market_data = pd.merge(daily, daily_basic, on=['ts_code', 'trade_date'], how='inner')
     
     # Resample to Monthly for final output
-    print("Resampling market data to monthly...")
+    print("正在将市场数据重采样为月频...")
     market_data['month'] = market_data['trade_date'].dt.to_period('M')
     market_data = market_data.sort_values('trade_date')
     
@@ -39,6 +52,8 @@ def construct_factors():
         d = {}
         d['close'] = x['close'].iloc[-1]
         d['total_mv'] = x['total_mv'].iloc[-1] # Month-end market cap
+        if 'pb' in x.columns:
+            d['pb'] = x['pb'].iloc[-1]
         d['trade_date'] = x['trade_date'].iloc[-1] # Month-end date
         
         # Calculate monthly return: P_t / P_{t-1} - 1
@@ -58,7 +73,7 @@ def construct_factors():
     monthly_market['size'] = monthly_market['total_mv']
     
     # 2. Load Financial Data
-    print("Loading financial data...")
+    print("正在加载财务报表数据...")
     
     # Load whitelist to get valid ts_codes
     whitelist = pd.read_parquet(WHITELIST_PATH, columns=['ts_code'])
@@ -67,7 +82,7 @@ def construct_factors():
     def load_financials(filename, columns=None):
         path = os.path.join(RAW_DATA_DIR, filename)
         if not os.path.exists(path):
-            print(f"Warning: {path} not found.")
+            print(f"警告: 未找到 {path}。")
             return pd.DataFrame()
         
         # Determine columns to load
@@ -81,8 +96,12 @@ def construct_factors():
         try:
             df = pd.read_parquet(path, columns=cols_to_load)
         except Exception as e:
-            print(f"Error loading {filename}: {e}. Loading all columns.")
-            df = pd.read_parquet(path)
+            print(f"使用 pyarrow 加载 {filename} 失败: {e}。正在尝试使用 fastparquet 并加载所有列...")
+            try:
+                df = pd.read_parquet(path, engine='fastparquet')
+            except Exception as e2:
+                print(f"使用 fastparquet 加载 {filename} 失败: {e2}。返回空 DataFrame。")
+                return pd.DataFrame()
             
         # Filter by universe
         df = df[df['ts_code'].isin(valid_stocks)]
@@ -106,7 +125,7 @@ def construct_factors():
     cf = load_financials('cashflow.parquet')
     
     # Merge Financials
-    print("Merging financial statements...")
+    print("正在合并财务数据...")
     
     # Start with Income Statement
     financial_df = inc.copy()
@@ -122,8 +141,46 @@ def construct_factors():
     # Sort for TTM calculation
     financial_df = financial_df.sort_values(['ts_code', 'end_date'])
     
+    # Apply TTM Conversion (Fix Double Counting)
+    print("正在将利润表项目的 YTD 转换为 TTM...")
+    # Identify columns that need TTM (Flow items from Income Statement)
+    # We need to check what columns are present.
+    # Common income statement items: revenue, n_income, n_income_attr_p, operate_profit, total_profit, income_tax, int_exp, etc.
+    # Also Cash Flow items are YTD.
+    
+    # Let's get all numeric columns from inc and cf that are not keys
+    inc_cols = [c for c in inc.columns if c not in ['ts_code', 'ann_date', 'end_date'] and pd.api.types.is_numeric_dtype(inc[c])]
+    cf_cols = [c for c in cf.columns if c not in ['ts_code', 'ann_date', 'end_date'] and pd.api.types.is_numeric_dtype(cf[c])]
+    
+    # We only convert columns that exist in financial_df
+    cols_to_convert = [c for c in inc_cols + cf_cols if c in financial_df.columns]
+    
+    # Remove duplicates
+    cols_to_convert = list(set(cols_to_convert))
+    
+    if cols_to_convert:
+        financial_df = convert_ytd_to_ttm(financial_df, cols_to_convert)
+        
+        # Now replace original columns with TTM columns for factor calculation
+        # The factor classes usually expect the standard column names (e.g. 'n_income'), not 'n_income_ttm'.
+        # So we should rename TTM columns back to original names, or update factor classes.
+        # Updating factor classes is cleaner but more work.
+        # Swapping columns here is easier and ensures all downstream logic uses TTM.
+        # Let's swap: Rename 'col' -> 'col_ytd', 'col_ttm' -> 'col'.
+        
+        rename_dict = {}
+        for col in cols_to_convert:
+            if f'{col}_ttm' in financial_df.columns:
+                rename_dict[col] = f'{col}_ytd'
+                rename_dict[f'{col}_ttm'] = col
+                
+        financial_df = financial_df.rename(columns=rename_dict)
+        print(f"已将 {len(cols_to_convert)} 列转换为 TTM。")
+    else:
+        print("没有需要转换为 TTM 的列。")
+    
     # 3. Calculate New Factors (Class-based)
-    print("Calculating new class-based factors...")
+    print("正在计算新的基于类的因子...")
     
     factors = [
         OCFtoNI(), APTurnover(), APDays(), FATurnover(), IntCoverage(),
@@ -134,19 +191,19 @@ def construct_factors():
     factor_results = []
     
     for factor in factors:
-        print(f"Calculating {factor.name}...")
+        print(f"正在计算 {factor.name}...")
         try:
             # Check if required columns exist (simple check, factor might fail inside otherwise)
             # We rely on the try-except block to handle missing columns gracefully
             res = factor.calculate(financial_df)
             factor_results.append(res)
         except Exception as e:
-            print(f"Error calculating {factor.name}: {e}")
+            print(f"计算 {factor.name} 时出错: {e}")
             # We can append an empty DF or just skip. Skipping is safer.
             
     # Merge all factor results
     if not factor_results:
-        print("No new factors calculated.")
+        print("没有计算出新的因子。")
         all_factors = financial_df[['ts_code', 'ann_date', 'end_date']].copy()
     else:
         all_factors = factor_results[0]
@@ -170,7 +227,7 @@ def construct_factors():
         all_factors = pd.merge(all_factors, temp_df, on=['ts_code', 'end_date', 'ann_date'], how='left')
 
     # 4. Merge to Market Data (Avoid Look-ahead Bias)
-    print("Merging factors to market data (asof)...")
+    print("正在将因子合并到市场数据 (asof)...")
     
     # Ensure ann_date is valid
     all_factors = all_factors.dropna(subset=['ann_date']).sort_values('ann_date')
@@ -187,25 +244,26 @@ def construct_factors():
     )
     
     # 5. Calculate Bm and Ep
-    print("Calculating Bm and Ep...")
+    print("正在计算 Bm 和 Ep...")
     
     # Bm = Book / Market
-    if 'total_hldr_eqy_exc_min_int' in merged.columns and 'total_mv' in merged.columns:
-        merged['Bm'] = merged['total_hldr_eqy_exc_min_int'] / merged['total_mv']
+    # User requested to use 1 / pb from daily_basic
+    if 'pb' in merged.columns:
+        merged['Bm'] = 1 / merged['pb']
     else:
-        print("Warning: Missing columns for Bm calculation.")
+        print("警告: 计算 Bm 缺少必要列 'pb'。")
         merged['Bm'] = np.nan
         
     # Ep = Earnings / Price (Market Cap)
     if 'n_income_attr_p' in merged.columns and 'total_mv' in merged.columns:
         merged['Ep'] = merged['n_income_attr_p'] / merged['total_mv']
     else:
-        print("Warning: Missing columns for Ep calculation.")
+        print("警告: 计算 Ep 缺少必要列。")
         merged['Ep'] = np.nan
 
     # 6. Save
     output_path = os.path.join(factors_dir, 'fundamental_factors.parquet')
-    print(f"Saving to {output_path}...")
+    print(f"正在保存至 {output_path}...")
     
     # Select columns
     # Basic: ts_code, trade_date, month, ret, size
@@ -224,8 +282,8 @@ def construct_factors():
     final_df = final_df.set_index(['trade_date', 'ts_code']).sort_index()
     
     final_df.to_parquet(output_path)
-    print("Done.")
-    print("Sample Output:")
+    print("完成。")
+    print("样例输出:")
     print(final_df.tail())
 
 if __name__ == "__main__":

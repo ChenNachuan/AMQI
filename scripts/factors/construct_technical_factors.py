@@ -9,17 +9,41 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from factor_library import (
     AverageTrueRange, BollingerBands, Ichimoku, MoneyFlowIndex,
-    OnBalanceVolume, PriceVolumeTrend, RelativeVigorIndex, TripleEMA, SineWMA
+    OnBalanceVolume, PriceVolumeTrend, RelativeVigorIndex, TripleEMA, SineWMA, Momentum
 )
 
 def load_daily_data():
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    daily_path = os.path.join(base_dir, 'data', 'raw_data', 'daily.parquet')
-    # We might need daily_basic for some things? No, technicals usually use OHLCV.
-    # daily.parquet should have open, high, low, close, vol.
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    daily_adj_path = os.path.join(base_dir, 'data', 'data_cleaner', 'daily_adj.parquet')
     
-    print(f"Loading daily data from {daily_path}...")
-    df = pd.read_parquet(daily_path)
+    print(f"Loading adjusted daily data from {daily_adj_path}...")
+    try:
+        df = pd.read_parquet(daily_adj_path, engine='fastparquet')
+    except Exception:
+        df = pd.read_parquet(daily_adj_path)
+        
+    # Select only adjusted columns and keys
+    cols_to_use = ['ts_code', 'trade_date', 'hfq_open', 'hfq_high', 'hfq_low', 'hfq_close', 'hfq_vol']
+    # Check if hfq_vol exists (it should now)
+    if 'hfq_vol' not in df.columns:
+        # Fallback if hfq_vol missing (shouldn't happen with new generate_adj_prices)
+        if 'vol' in df.columns:
+             df['hfq_vol'] = df['vol']
+        else:
+             raise ValueError("Missing volume data")
+             
+    df = df[cols_to_use].copy()
+
+    # Rename hfq_ columns to standard names for technical analysis
+    rename_dict = {
+        'hfq_close': 'close',
+        'hfq_open': 'open',
+        'hfq_high': 'high',
+        'hfq_low': 'low',
+        'hfq_vol': 'vol'
+    }
+    df = df.rename(columns=rename_dict)
     return df
 
 def construct_technical_factors():
@@ -51,7 +75,8 @@ def construct_technical_factors():
         PriceVolumeTrend(),
         RelativeVigorIndex(),
         TripleEMA(),
-        SineWMA()
+        SineWMA(),
+        Momentum()
     ]
     
     results = []

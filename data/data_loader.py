@@ -19,6 +19,7 @@ DATASET_MAPPING = {
     'cashflow': 'cashflow.parquet',
     'fina_indicator': 'fina_indicator.parquet',
     'dividend': 'dividend.parquet',
+    'adj_factor': 'adj_factor.parquet',
     # Index Data
     'index_basic': 'index_basic.parquet',
     'index_weight': 'index_weight.parquet',
@@ -78,14 +79,24 @@ def load_data(
         load_columns = list(set(columns) | keys_to_add)
 
     # 1. Load Raw Data (Optimized)
-    print(f"Loading raw data from {file_path}...")
+    print(f"正在从 {file_path} 加载原始数据...")
     try:
         raw_data = pd.read_parquet(file_path, columns=load_columns)
     except Exception as e:
-        print(f"Error loading columns: {e}. Loading all columns.")
-        raw_data = pd.read_parquet(file_path)
-        if columns:
-             raw_data = raw_data[list(set(columns) | {'ts_code', 'trade_date'} & set(raw_data.columns))]
+        print(f"使用 pyarrow 加载列失败: {e}。正在尝试加载所有列...")
+        try:
+            raw_data = pd.read_parquet(file_path)
+            if columns:
+                 raw_data = raw_data[list(set(columns) | {'ts_code', 'trade_date'} & set(raw_data.columns))]
+        except Exception as e2:
+            print(f"使用 pyarrow 加载失败: {e2}。尝试使用 fastparquet...")
+            try:
+                raw_data = pd.read_parquet(file_path, engine='fastparquet', columns=load_columns)
+            except Exception as e3:
+                print(f"使用 fastparquet 加载列失败: {e3}。尝试使用 fastparquet 加载所有列...")
+                raw_data = pd.read_parquet(file_path, engine='fastparquet')
+                if columns:
+                     raw_data = raw_data[list(set(columns) | {'ts_code', 'trade_date'} & set(raw_data.columns))]
 
     # Ensure date column type match
     if 'trade_date' in raw_data.columns:
@@ -101,7 +112,7 @@ def load_data(
     # 2. Filter Universe (Optional)
     # Skip filtering for Macro/Index datasets
     if filter_universe and dataset_name not in MACRO_DATASETS:
-        print(f"Loading whitelist from {WHITELIST_PATH}...")
+        print(f"正在从 {WHITELIST_PATH} 加载白名单...")
         whitelist = pd.read_parquet(WHITELIST_PATH, columns=['ts_code', 'trade_date'])
         whitelist['trade_date'] = pd.to_datetime(whitelist['trade_date'].astype(str))
         
@@ -111,7 +122,7 @@ def load_data(
         if end_date:
             whitelist = whitelist[whitelist['trade_date'] <= pd.to_datetime(end_date)]
             
-        print("Merging with whitelist...")
+        print("正在与白名单合并...")
         if 'trade_date' in raw_data.columns:
             merged_data = pd.merge(whitelist, raw_data, on=['ts_code', 'trade_date'], how='inner')
         else:
@@ -132,12 +143,12 @@ def load_data(
     else:
         merged_data = merged_data.sort_values(['ts_code'])
 
-    print(f"Final data shape: {merged_data.shape}")
+    print(f"最终数据形状: {merged_data.shape}")
     return merged_data
 
 if __name__ == "__main__":
     # Usage Example
-    print("Running usage example...")
+    print("正在运行使用示例...")
     df = load_data(
         dataset_name='daily',
         columns=['close', 'vol'],
@@ -145,5 +156,5 @@ if __name__ == "__main__":
         end_date='2005-02-01',
         filter_universe=True
     )
-    print("\nSample Data:")
+    print("\n样例数据:")
     print(df.head())

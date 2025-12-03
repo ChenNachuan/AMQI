@@ -29,42 +29,41 @@ class Beta(BaseFactor):
         """
         self.check_dependencies(df)
         
-        df = df.sort_values(['ts_code', 'trade_date'])
+        # Vectorized Beta Calculation
+        # 1. Pivot Returns to Wide Format (Index=Date, Columns=Stock)
+        # This handles alignment automatically
+        returns_wide = df.pivot(index='trade_date', columns='ts_code', values='ret')
         
-        window = 252 # 1 year rolling window
+        # 2. Get Market Return Series
+        # Since mkt_ret is repeated for each stock, we can just take the mean across columns or pick one valid column
+        # But wait, mkt_ret might be missing for some stocks if they are suspended?
+        # Ideally, mkt_ret comes from a benchmark and is consistent.
+        # Let's pivot mkt_ret as well to be safe, or just take the first valid one per date.
+        # Actually, simpler: df[['trade_date', 'mkt_ret']].drop_duplicates().set_index('trade_date')
+        mkt_ret_series = df[['trade_date', 'mkt_ret']].drop_duplicates().set_index('trade_date')['mkt_ret']
         
-        # Calculate Rolling Covariance and Variance
-        # We need rolling Cov(R_i, R_m)
+        # Align market returns to the wide dataframe index
+        mkt_ret_series = mkt_ret_series.reindex(returns_wide.index)
         
-        # Group by ts_code
-        grouped = df.groupby('ts_code')
+        window = 252
         
-        # Rolling Covariance
-        # pandas rolling cov requires two series.
-        # We can do: df.groupby('ts_code').apply(lambda x: x['ret'].rolling(window).cov(x['mkt_ret']))
-        # But apply is slow.
-        # Optimization:
-        # cov(x, y) = E[xy] - E[x]E[y] (approx)
-        # Or just use the rolling().cov() which is optimized in recent pandas.
+        # 3. Calculate Rolling Covariance (Vectorized)
+        # df.rolling().cov(series) broadcasts the series to all columns
+        rolling_cov = returns_wide.rolling(window).cov(mkt_ret_series)
         
-        cov_rim = grouped.apply(lambda x: x['ret'].rolling(window).cov(x['mkt_ret'])).reset_index(0, drop=True)
+        # 4. Calculate Rolling Variance of Market
+        rolling_var = mkt_ret_series.rolling(window).var()
         
-        # Rolling Variance of Market
-        # var_rm = grouped['mkt_ret'].rolling(window).var() 
-        # Since mkt_ret is same for all, we can just do it once? 
-        # No, because the window must align with the stock's dates (suspensions etc).
-        # So best to do it per group to handle missing dates correctly if any.
-        var_rm = grouped['mkt_ret'].rolling(window).var().reset_index(0, drop=True)
+        # 5. Calculate Beta
+        # Broadcast division
+        beta_wide = rolling_cov.div(rolling_var, axis=0)
         
-        beta = cov_rim / var_rm
+        # 6. Stack back to Long Format
+        beta_long = beta_wide.stack().reset_index()
+        beta_long.columns = ['trade_date', 'ts_code', self.name]
         
         # Result
-        result = pd.DataFrame({
-            self.name: beta,
-            'trade_date': df['trade_date'],
-            'ts_code': df['ts_code']
-        })
-        
-        result = result.set_index(['trade_date', 'ts_code']).sort_index()
+        result = beta_long.sort_values(['trade_date', 'ts_code'])
+        result = result.set_index(['trade_date', 'ts_code'])
         
         return result

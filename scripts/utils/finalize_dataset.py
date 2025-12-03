@@ -7,13 +7,13 @@ import sys
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from data.data_loader import load_data
+from data_loader import load_data
 from factor_library import Universe
 
 # Define Aggregation Rules
 AGGREGATION_RULES = {
     # --- 必须取平均的 (Flow / Activity) ---
-    'TUR': 'mean',
+    'TUR': 'mean', # Average Daily Turnover for the month (Activity)
     
     # --- 必须取期末值的 (State / Signal) ---
     # 技术面
@@ -107,32 +107,32 @@ def finalize_dataset():
         print("Loading technical factors...")
         tech_df = pd.read_parquet(tech_path) # Daily
     else:
-        print("Warning: Technical factors file not found. Skipping.")
+        print("警告: 未找到技术因子文件。跳过。")
         tech_df = None
     
-    print(f"Fundamental factors shape: {fund_df.shape}")
-    print(f"Risk factors shape: {risk_df.shape}")
+    print(f"基本面因子形状: {fund_df.shape}")
+    print(f"风险因子形状: {risk_df.shape}")
     if tech_df is not None:
-        print(f"Technical factors shape: {tech_df.shape}")
+        print(f"技术因子形状: {tech_df.shape}")
     
     # Load Market Cap for Filtering
-    print("Loading daily_basic for market cap filtering...")
+    print("正在加载 daily_basic 用于市值过滤...")
     # We need total_mv. We load daily and will downsample.
     daily_basic = load_data('daily_basic', columns=['total_mv'], filter_universe=True)
     
     # 2. Pre-processing & Month Key Creation for Fundamental
-    print("Creating Month Keys for Fundamental...")
+    print("正在为基本面数据创建月份键...")
     if 'trade_date' not in fund_df.columns:
         fund_df = fund_df.reset_index()
     fund_df['trade_date'] = pd.to_datetime(fund_df['trade_date'])
     fund_df['month'] = fund_df['trade_date'].dt.to_period('M')
     
     # 3. Downsample Daily Data to Monthly
-    risk_monthly = downsample_daily_to_monthly(risk_df, name="Risk Factors")
+    risk_monthly = downsample_daily_to_monthly(risk_df, name="风险因子")
     
     tech_monthly = None
     if tech_df is not None:
-        tech_monthly = downsample_daily_to_monthly(tech_df, name="Technical Factors")
+        tech_monthly = downsample_daily_to_monthly(tech_df, name="技术因子")
     
     # Market Cap: Take last record per stock-month
     # We can use the helper or just do it manually since it's simple
@@ -142,7 +142,7 @@ def finalize_dataset():
     mv_monthly = daily_basic.groupby(['ts_code', 'month']).last().reset_index()
     
     # 4. Robust Merge
-    print("Merging datasets on Month Key...")
+    print("正在基于月份键合并数据集...")
     
     # Fundamental (Left) + Risk (Right) on ['ts_code', 'month']
     # Rename trade_date in Fundamental
@@ -163,29 +163,29 @@ def finalize_dataset():
     # Merge Market Cap
     merged = pd.merge(merged, mv_monthly[['ts_code', 'month', 'total_mv']], on=['ts_code', 'month'], how='left')
     
-    print(f"Merged shape before filtering: {merged.shape}")
+    print(f"过滤前合并数据形状: {merged.shape}")
     
     # 5. Data Enrichment
-    print("Calculating Roe...")
+    print("正在计算 Roe...")
     # Roe = Ep / Bm
     if 'Ep' in merged.columns and 'Bm' in merged.columns:
         merged['Roe'] = merged['Ep'] / merged['Bm']
         merged['Roe'] = merged['Roe'].replace([np.inf, -np.inf], np.nan)
     else:
-        print("Warning: Ep or Bm missing. Skipping Roe calculation.")
+        print("警告: Ep 或 Bm 缺失。跳过 Roe 计算。")
         merged['Roe'] = np.nan
     
     # 6. Universe Filtering
-    print("Applying Universe Filter (Bottom 30% Market Cap)...")
+    print("正在应用股票池过滤 (剔除市值后 30%)...")
     
     merged = merged.dropna(subset=['trade_date'])
     
     merged = Universe.apply_market_cap_filter(merged, threshold_percent=0.3)
     
-    print(f"Merged shape after filtering: {merged.shape}")
+    print(f"过滤后合并数据形状: {merged.shape}")
     
     # 7. Target Generation
-    print("Creating next_ret...")
+    print("正在创建 next_ret...")
     merged = merged.sort_values(['ts_code', 'trade_date'])
     
     # Shift ret backwards by 1
@@ -193,7 +193,7 @@ def finalize_dataset():
     merged['next_ret'] = merged.groupby('ts_code')['ret'].shift(-1)
     
     # 8. Final Cleanup
-    print("Finalizing...")
+    print("正在完成...")
     # Drop rows where next_ret is NaN
     merged = merged.dropna(subset=['next_ret'])
     
@@ -204,12 +204,12 @@ def finalize_dataset():
     # Set index
     merged = merged.set_index(['trade_date', 'ts_code']).sort_index()
     
-    print(f"Final shape: {merged.shape}")
-    print("Columns:", merged.columns.tolist())
+    print(f"最终形状: {merged.shape}")
+    print("列:", merged.columns.tolist())
     
-    print(f"Saving to {output_path}...")
+    print(f"正在保存至 {output_path}...")
     merged.to_parquet(output_path)
-    print("Done.")
+    print("完成。")
 
 if __name__ == "__main__":
     finalize_dataset()

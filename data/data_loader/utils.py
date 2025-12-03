@@ -103,7 +103,7 @@ def save_to_parquet(df: pd.DataFrame, filename: str, raw_data_dir: str = None) -
     # Save to parquet
     output_path = raw_data_dir / f"{filename}.parquet"
     df.to_parquet(output_path, index=False, compression='snappy')
-    print(f"✓ Saved {len(df):,} records to {output_path}")
+    print(f"✓ 已保存 {len(df):,} 条记录至 {output_path}")
 
 
 def log_progress(current: int, total: int, prefix: str = "Progress") -> None:
@@ -135,7 +135,7 @@ def load_stock_basic(pro: Optional[ts.pro_api] = None, refresh: bool = False) ->
         try:
             df = pd.read_parquet(cache_path)
         except (OSError, ValueError) as exc:
-            print(f"⚠️  Failed to read cached stock_basic ({exc}); refreshing from Tushare...")
+            print(f"⚠️  读取缓存 stock_basic 失败 ({exc}); 正在从 Tushare 刷新...")
             refresh = True
 
     if refresh or df is None:
@@ -148,7 +148,7 @@ def load_stock_basic(pro: Optional[ts.pro_api] = None, refresh: bool = False) ->
         )
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_parquet(cache_path, index=False, compression='snappy')
-        print(f"✓ Refreshed stock_basic cache with {len(df):,} rows at {cache_path}")
+        print(f"✓ 已刷新 stock_basic 缓存，共 {len(df):,} 行，保存至 {cache_path}")
 
     if df is None:
         raise RuntimeError("Failed to load stock_basic data")
