@@ -9,11 +9,18 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from factor_library import (
     AverageTrueRange, BollingerBands, Ichimoku, MoneyFlowIndex,
-    OnBalanceVolume, PriceVolumeTrend, RelativeVigorIndex, TripleEMA, SineWMA, Momentum
+    OnBalanceVolume, PriceVolumeTrend, RelativeVigorIndex, TripleEMA, SineWMA, Momentum,
+    # New Factors
+    ATRExpansion, PriceBreakout, PricePosition, ATRTrend, VolumeConfirmation,
+    BollingerBreakoutUpper, BollingerMiddleSupport, BollingerOversoldBounce, BollingerSqueezeExpansion,
+    IchimokuCloudTrend, IchimokuCloudWidthMomentum, IchimokuPricePosition, IchimokuTKCross,
+    MFIChangeRate, MFIDivergence,
+    OBVBreakthrough, OBVChangeRate, OBVDivergence, OBVRank, OBVSlope,
+    PVTDivergence, PVTMADeviation, PVTMomentumReversal,
+    RVICrossFactor, RVIDiffFactor, RVIStrengthFactor, RVITrendFactor, RVIValueFactor, RVIVolumeFactor
 )
 
 def load_daily_data():
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     daily_adj_path = os.path.join(base_dir, 'data', 'data_cleaner', 'daily_adj.parquet')
     
@@ -76,7 +83,15 @@ def construct_technical_factors():
         RelativeVigorIndex(),
         TripleEMA(),
         SineWMA(),
-        Momentum()
+        Momentum(),
+        # New Factors
+        ATRExpansion(), PriceBreakout(), PricePosition(), ATRTrend(), VolumeConfirmation(),
+        BollingerBreakoutUpper(), BollingerMiddleSupport(), BollingerOversoldBounce(), BollingerSqueezeExpansion(),
+        IchimokuCloudTrend(), IchimokuCloudWidthMomentum(), IchimokuPricePosition(), IchimokuTKCross(),
+        MFIChangeRate(), MFIDivergence(),
+        OBVBreakthrough(), OBVChangeRate(), OBVDivergence(), OBVRank(), OBVSlope(),
+        PVTDivergence(), PVTMADeviation(), PVTMomentumReversal(),
+        RVICrossFactor(), RVIDiffFactor(), RVIStrengthFactor(), RVITrendFactor(), RVIValueFactor(), RVIVolumeFactor()
     ]
     
     results = []

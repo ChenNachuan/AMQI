@@ -115,7 +115,17 @@ def main():
         'TaxRate', 'OpAssetChg', 'EquityRatio', 'NOAT', 'FARatio'
     ]
     risk_trading_factors = ['beta', 'IVFF', 'TUR', 'Srev']
-    technical_factors = ['ATR', 'Bollinger', 'Ichimoku', 'MFI', 'OBV', 'PVT', 'RVI', 'TEMA', 'SWMA']
+    technical_factors = [
+        'ATR', 'Bollinger', 'Ichimoku', 'MFI', 'OBV', 'PVT', 'RVI', 'TEMA', 'SWMA',
+        # New Factors
+        'ATR_Expansion', 'ATR_Price_Breakout', 'ATR_Price_Position', 'ATR_Trend', 'ATR_Volume_Confirmation',
+        'Bollinger_Breakout_Upper', 'Bollinger_Middle_Support', 'Bollinger_Oversold_Bounce', 'Bollinger_Squeeze_Expansion',
+        'Ichimoku_Cloud_Trend', 'Ichimoku_Cloud_Width_Momentum', 'Ichimoku_Price_Position', 'Ichimoku_TK_Cross',
+        'MFI_ChangeRate_5d', 'MFI_Divergence',
+        'OBV_Breakthrough', 'OBV_ChangeRate_5d', 'OBV_Divergence', 'OBV_Rank', 'OBV_Slope',
+        'PVT_Divergence', 'PVT_MA_Deviation', 'PVT_Momentum_Reversal',
+        'RVI_Cross', 'RVI_Diff', 'RVI_Strength', 'RVI_Trend', 'RVI_Value', 'RVI_Volume'
+    ]
     
     all_factors = fundamental_factors + risk_trading_factors + technical_factors
     
@@ -126,9 +136,14 @@ def main():
     print(f"Generating notebooks for {len(all_factors)} factors in {notebooks_dir}...")
     
     for factor in all_factors:
-        notebook_content = create_notebook_content(factor)
         filename = f"backtest_{factor}.ipynb"
         filepath = os.path.join(notebooks_dir, filename)
+        
+        if os.path.exists(filepath):
+            print(f"Skipping {filename} (already exists)")
+            continue
+            
+        notebook_content = create_notebook_content(factor)
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(notebook_content, f, indent=4)
