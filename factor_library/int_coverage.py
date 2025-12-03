@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 from .base_factor import BaseFactor
+from scripts.utils.financial_utils import convert_ytd_to_ttm
 
 class IntCoverage(BaseFactor):
     """
@@ -20,13 +21,11 @@ class IntCoverage(BaseFactor):
     def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
         self.check_dependencies(df)
         
-        # TTM OCF
-        ocf_ttm = df.groupby('ts_code')['n_cashflow_act'].rolling(4).sum().reset_index(level=0, drop=True)
+        # Calculate TTM for OCF and Interest Expense (Flow variables)
+        df = convert_ytd_to_ttm(df, 'n_cashflow_act')
+        df = convert_ytd_to_ttm(df, 'int_exp')
         
-        # TTM Interest Expense
-        int_ttm = df.groupby('ts_code')['int_exp'].rolling(4).sum().reset_index(level=0, drop=True)
-        
-        factor_value = ocf_ttm / int_ttm
+        factor_value = df['n_cashflow_act_ttm'] / df['int_exp_ttm']
         factor_value = factor_value.replace([np.inf, -np.inf], np.nan)
         
         result = pd.DataFrame({

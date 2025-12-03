@@ -46,6 +46,7 @@ class Ichimoku(BaseFactor):
         
         # Factor: (Close - Kijun_sen) / Close
         # Normalize to make it comparable across price levels
+        # Fix: Return percentage deviation
         factor_value = (df['close'] - kijun_sen) / df['close']
         
         # Prepare result

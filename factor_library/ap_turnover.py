@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 from .base_factor import BaseFactor
+from scripts.utils.financial_utils import convert_ytd_to_ttm
 
 class APTurnover(BaseFactor):
     """
@@ -22,14 +23,14 @@ class APTurnover(BaseFactor):
     def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
         self.check_dependencies(df)
         
-        # TTM COGS
-        cogs_ttm = df.groupby('ts_code')['total_cogs'].rolling(4).sum().reset_index(level=0, drop=True)
+        # Calculate TTM for COGS (Flow variable)
+        df = convert_ytd_to_ttm(df, 'total_cogs')
         
-        # Average Accounts Payable
+        # Average Accounts Payable (Stock variable)
         # Using rolling mean of last 4 quarters to represent the average level during the TTM period
         avg_ap = df.groupby('ts_code')['accounts_payable'].rolling(4).mean().reset_index(level=0, drop=True)
         
-        factor_value = cogs_ttm / avg_ap
+        factor_value = df['total_cogs_ttm'] / avg_ap
         factor_value = factor_value.replace([np.inf, -np.inf], np.nan)
         
         result = pd.DataFrame({

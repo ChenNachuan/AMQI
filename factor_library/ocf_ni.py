@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 from .base_factor import BaseFactor
+from scripts.utils.financial_utils import convert_ytd_to_ttm
 
 class OCFtoNI(BaseFactor):
     """
@@ -23,13 +24,11 @@ class OCFtoNI(BaseFactor):
         """
         self.check_dependencies(df)
         
-        # TTM Calculation: Rolling sum of last 4 quarters
-        # Note: This assumes data is quarterly and sorted.
+        # Calculate TTM for Cashflow and Net Income (Flow variables)
+        df = convert_ytd_to_ttm(df, 'n_cashflow_act')
+        df = convert_ytd_to_ttm(df, 'n_income')
         
-        ocf_ttm = df.groupby('ts_code')['n_cashflow_act'].rolling(4).sum().reset_index(level=0, drop=True)
-        ni_ttm = df.groupby('ts_code')['n_income'].rolling(4).sum().reset_index(level=0, drop=True)
-        
-        factor_value = ocf_ttm / ni_ttm
+        factor_value = df['n_cashflow_act_ttm'] / df['n_income_ttm']
         
         # Handle division by zero or infinites
         factor_value = factor_value.replace([np.inf, -np.inf], np.nan)

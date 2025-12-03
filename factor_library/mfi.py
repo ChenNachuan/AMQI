@@ -79,9 +79,11 @@ class MoneyFlowIndex(BaseFactor):
         # Fill NaNs where neg_flow was 0 (meaning MFR is infinite, MFI should be 100)
         # If rolling_neg is 0 and rolling_pos > 0, MFI is 100.
         # If both are 0, MFI is usually 50 or NaN. Let's leave as NaN or handle if needed.
-        # For now, standard formula.
-        mfi = mfi.fillna(100, limit=None) # Simple fill, might need refinement but acceptable for standard logic
-        # Actually, if mfr is NaN because neg is 0, then 1+mfr is NaN.
+        # Fix: Fill with 50 (Neutral) or leave as NaN. 
+        # The user requested: "Fill with 50 (Neutral) or leave as NaN".
+        # Let's fill with 50 for stability in signals.
+        mfi = mfi.fillna(50) 
+        
         # If neg is 0, it means no negative moves. So MFI should be 100.
         mask_zero_neg = (rolling_neg == 0)
         mfi[mask_zero_neg] = 100

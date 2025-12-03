@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 from .base_factor import BaseFactor
+from scripts.utils.financial_utils import convert_ytd_to_ttm
 
 class NOAT(BaseFactor):
     """
@@ -23,8 +24,8 @@ class NOAT(BaseFactor):
     def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
         self.check_dependencies(df)
         
-        # TTM Revenue
-        rev_ttm = df.groupby('ts_code')['revenue'].rolling(4).sum().reset_index(level=0, drop=True)
+        # Calculate TTM for Revenue (Flow variable)
+        df = convert_ytd_to_ttm(df, 'revenue')
         
         # Net Operating Assets
         # NOA = Operating Assets - Operating Liabilities
@@ -60,7 +61,7 @@ class NOAT(BaseFactor):
         df['_noa'] = noa
         avg_noa = df.groupby('ts_code')['_noa'].rolling(4).mean().reset_index(level=0, drop=True)
         
-        factor_value = rev_ttm / avg_noa
+        factor_value = df['revenue_ttm'] / avg_noa
         factor_value = factor_value.replace([np.inf, -np.inf], np.nan)
         
         result = pd.DataFrame({

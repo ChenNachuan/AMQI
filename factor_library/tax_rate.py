@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 from .base_factor import BaseFactor
+from scripts.utils.financial_utils import convert_ytd_to_ttm
 
 class TaxRate(BaseFactor):
     """
@@ -20,13 +21,11 @@ class TaxRate(BaseFactor):
     def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
         self.check_dependencies(df)
         
-        # TTM Income Tax
-        tax_ttm = df.groupby('ts_code')['income_tax'].rolling(4).sum().reset_index(level=0, drop=True)
+        # Calculate TTM for Income Tax and Total Profit (Flow variables)
+        df = convert_ytd_to_ttm(df, 'income_tax')
+        df = convert_ytd_to_ttm(df, 'total_profit')
         
-        # TTM Total Profit
-        profit_ttm = df.groupby('ts_code')['total_profit'].rolling(4).sum().reset_index(level=0, drop=True)
-        
-        factor_value = tax_ttm / profit_ttm
+        factor_value = df['income_tax_ttm'] / df['total_profit_ttm']
         factor_value = factor_value.replace([np.inf, -np.inf], np.nan)
         
         result = pd.DataFrame({

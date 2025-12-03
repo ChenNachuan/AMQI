@@ -6,10 +6,18 @@ from pathlib import Path
 import pandas as pd
 import time
 
-# Add parent directory to path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent))
+# Add data/data_loader to path to import utils
+# AMQI/scripts/download_ext_data.py -> parent=scripts -> parent.parent=AMQI
+project_root = Path(__file__).parent.parent
+data_loader_dir = project_root / 'data' / 'data_loader'
+sys.path.append(str(data_loader_dir))
 
-from data.data_loader.utils import init_tushare_api, save_to_parquet, _get_raw_data_dir
+try:
+    from utils import init_tushare_api, save_to_parquet, _get_raw_data_dir
+except ImportError:
+    # Fallback if running from different location
+    sys.path.append(str(Path(__file__).parent.parent / 'data' / 'data_loader'))
+    from utils import init_tushare_api, save_to_parquet, _get_raw_data_dir
 
 # Configuration
 START_DATE = '20050101'
@@ -135,22 +143,7 @@ def download_macro_data(pro):
 def download_adj_factor(pro):
     print("\n--- 下载复权因子 ---")
     try:
-        # Download adj_factor for all stocks
-        # Note: adj_factor table is large, but we need it for all stocks.
-        # We can download by date range or just all. Tushare pro.adj_factor supports ts_code or trade_date.
-        # To get full history for all stocks efficiently, we might need to loop by date or stock.
-        # However, pro.adj_factor without params might be limited.
-        # Let's try downloading by date chunks if needed, but for now let's try getting all for valid stocks if possible.
-        # Actually, best practice for Tushare adj_factor is usually by ts_code or date.
-        # Since we have a whitelist, we could loop by ts_code, but that's 5000+ requests.
-        # Better: Loop by trade_date is too much (20 years).
-        # Tushare 'adj_factor' returns all history if ts_code is provided.
-        # Let's try downloading for all stocks in our universe (whitelist).
-        
         # Load whitelist or stock_basic
-        # Load whitelist or stock_basic
-        from data.data_loader.utils import _get_raw_data_dir
-        
         raw_data_dir = _get_raw_data_dir()
         whitelist_path = raw_data_dir / 'whitelist.parquet'
         stock_basic_path = raw_data_dir / 'stock_basic.parquet'
@@ -179,10 +172,7 @@ def download_adj_factor(pro):
                  batch = codes[i:i+batch_size]
                  print(f"  正在处理批次 {i//batch_size + 1}/{len(codes)//batch_size + 1}...")
                  try:
-                     # pro.adj_factor can take comma separated codes? No, usually single or by date.
-                     # Actually, checking Tushare docs: adj_factor(ts_code='...', trade_date='...')
-                     # If we pass multiple codes, it might work.
-                     # Let's try comma separated.
+                     # pro.adj_factor can take comma separated codes
                      codes_str = ",".join(batch)
                      df = pro.adj_factor(ts_code=codes_str, start_date=START_DATE, end_date=END_DATE)
                      if not df.empty:
