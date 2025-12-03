@@ -26,11 +26,12 @@ from .op_asset_chg import OpAssetChg
 from .equity_ratio import EquityRatio
 from .noat import NOAT
 from .fa_ratio import FARatio
+from .roe_mom_na_growth import ROEMomNAGrowth
 
 __all__ = [
     'BaseFactor', 'Momentum', 'Universe', 'Ivff', 'Beta', 'Turnover', 'Reversal',
     'AverageTrueRange', 'BollingerBands', 'Ichimoku', 'MoneyFlowIndex', 
     'OnBalanceVolume', 'PriceVolumeTrend', 'RelativeVigorIndex', 'TripleEMA', 'SineWMA',
     'OCFtoNI', 'APTurnover', 'APDays', 'FATurnover', 'IntCoverage', 'TaxRate',
-    'OpAssetChg', 'EquityRatio', 'NOAT', 'FARatio'
+    'OpAssetChg', 'EquityRatio', 'NOAT', 'FARatio', 'ROEMomNAGrowth'
 ]

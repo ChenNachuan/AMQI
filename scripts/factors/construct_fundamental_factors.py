@@ -14,7 +14,7 @@ print(f"sys.path: {sys.path}")
 from data.data_loader import load_data, RAW_DATA_DIR, WHITELIST_PATH
 from factor_library import (
     OCFtoNI, APTurnover, APDays, FATurnover, IntCoverage, TaxRate,
-    OpAssetChg, EquityRatio, NOAT, FARatio
+    OpAssetChg, EquityRatio, NOAT, FARatio, ROEMomNAGrowth
 )
 from scripts.utils.financial_utils import convert_ytd_to_ttm
 
@@ -178,13 +178,23 @@ def construct_factors():
         print(f"已将 {len(cols_to_convert)} 列转换为 TTM。")
     else:
         print("没有需要转换为 TTM 的列。")
+        
+    # Calculate ROE (TTM) for RoeMomNaGrowth
+    # roe_ttm = n_income_attr_p (TTM) / total_hldr_eqy_exc_min_int (Average or End?)
+    # Using End period equity for simplicity as per common practice in simple factors, or Average if possible.
+    # Here we use End period.
+    if 'n_income_attr_p' in financial_df.columns and 'total_hldr_eqy_exc_min_int' in financial_df.columns:
+        financial_df['roe_ttm'] = financial_df['n_income_attr_p'] / financial_df['total_hldr_eqy_exc_min_int']
+        print("已计算 roe_ttm。")
+    else:
+        print("警告: 缺少计算 roe_ttm 的列 (n_income_attr_p, total_hldr_eqy_exc_min_int)。")
     
     # 3. Calculate New Factors (Class-based)
     print("正在计算新的基于类的因子...")
     
     factors = [
         OCFtoNI(), APTurnover(), APDays(), FATurnover(), IntCoverage(),
-        TaxRate(), OpAssetChg(), EquityRatio(), NOAT(), FARatio()
+        TaxRate(), OpAssetChg(), EquityRatio(), NOAT(), FARatio(), ROEMomNAGrowth()
     ]
     
     # Store results
