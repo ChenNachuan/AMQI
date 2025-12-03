@@ -146,8 +146,14 @@ def construct_factors():
     inc_cols = [c for c in inc.columns if c not in ['ts_code', 'ann_date', 'end_date'] and pd.api.types.is_numeric_dtype(inc[c])]
     cf_cols = [c for c in cf.columns if c not in ['ts_code', 'ann_date', 'end_date'] and pd.api.types.is_numeric_dtype(cf[c])]
     
-    # We only convert columns that exist in financial_df
-    cols_to_convert = [c for c in inc_cols + cf_cols if c in financial_df.columns]
+    # Define fields that strictly require TTM conversion (Flow variables)
+    TTM_REQUIRED_FIELDS = {
+        'n_cashflow_act', 'n_income', 'int_exp', 'income_tax', 'total_profit', 
+        'total_cogs', 'n_income_attr_p', 'revenue', 'total_revenue', 'oper_cost', 'operate_profit'
+    }
+    
+    # We only convert columns that exist in financial_df AND are in the required list
+    cols_to_convert = [c for c in inc_cols + cf_cols if c in financial_df.columns and c in TTM_REQUIRED_FIELDS]
     
     # Remove duplicates
     cols_to_convert = list(set(cols_to_convert))

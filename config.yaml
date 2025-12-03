@@ -1,0 +1,5 @@
+# Global Configuration for AMQI Project
+
+backtest:
+  start_date: "2010-01-01"
+  end_date: "2024-12-31"

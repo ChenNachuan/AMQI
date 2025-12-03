@@ -4,6 +4,7 @@ import numpy as np
 from .analyzer import FactorAnalyzer
 from .metrics import annualized_return, annualized_volatility, sharpe_ratio, max_drawdown
 from .plotting import plot_cumulative_returns, plot_ic_series, plot_quantile_bar
+from .config import load_config
 
 class BacktestEngine:
     def __init__(self, df: pd.DataFrame, factor_name: str, target_col: str = 'next_ret', benchmark_df: pd.DataFrame = None):
@@ -14,9 +15,28 @@ class BacktestEngine:
             factor_name: Name of the factor to analyze.
             benchmark_df: Optional DataFrame with [trade_date, ret] for benchmark.
         """
+        # Load Config
+        config = load_config()
+        start_date = config.get('backtest', {}).get('start_date')
+        end_date = config.get('backtest', {}).get('end_date')
+        
+        # Filter Data by Date
+        # df index is [trade_date, ts_code]
+        if start_date:
+            df = df[df.index.get_level_values('trade_date') >= pd.to_datetime(start_date)]
+        if end_date:
+            df = df[df.index.get_level_values('trade_date') <= pd.to_datetime(end_date)]
+            
         self.df = df
         self.factor_name = factor_name
         self.benchmark_df = benchmark_df
+        
+        # Filter Benchmark if exists
+        if self.benchmark_df is not None:
+             if start_date:
+                 self.benchmark_df = self.benchmark_df[self.benchmark_df['trade_date'] >= pd.to_datetime(start_date)]
+             if end_date:
+                 self.benchmark_df = self.benchmark_df[self.benchmark_df['trade_date'] <= pd.to_datetime(end_date)]
         
         # Check if factor exists, if not, try to calculate it
         if self.factor_name not in self.df.columns:
