@@ -16,7 +16,7 @@ AGGREGATION_RULES = {
     'TUR': 'mean', # Average Daily Turnover for the month (Activity)
     
     # --- 必须取期末值的 (State / Signal) ---
-    # 技术面
+    # 技术面 (New Factors included)
     'ATR': 'last',
     'Boll': 'last',
     'Ichimoku': 'last',
@@ -26,6 +26,32 @@ AGGREGATION_RULES = {
     'RVI': 'last',
     'TEMA': 'last',
     'SWMA': 'last',
+    
+    # ATR Variations
+    'ATR_Expansion': 'last', 'Price_Breakout': 'last', 'Price_Position': 'last', 
+    'ATR_Trend': 'last', 'Volume_Confirmation': 'last',
+    
+    # Bollinger Variations
+    'Boll_Breakout_Upper': 'last', 'Boll_Middle_Support': 'last', 
+    'Boll_Oversold_Bounce': 'last', 'Boll_Squeeze_Expansion': 'last',
+    
+    # Ichimoku Variations
+    'IchimokuCloudTrend': 'last', 'IchimokuCloudWidthMomentum': 'last', 
+    'IchimokuPricePosition': 'last', 'IchimokuTKCross': 'last',
+    
+    # MFI Variations
+    'MFI_ChangeRate_5d': 'last', 'MFI_Divergence_20d': 'last',
+    
+    # OBV Variations
+    'OBV_Breakthrough': 'last', 'OBV_Change_Rate': 'last', 'OBV_Divergence': 'last', 
+    'OBV_Rank': 'last', 'OBV_Slope': 'last',
+    
+    # PVT Variations
+    'PVT_Divergence': 'last', 'PVT_MA_Deviation': 'last', 'PVT_Momentum_Reversal': 'last',
+    
+    # RVI Variations
+    'RVI_Cross': 'last', 'RVI_Diff': 'last', 'RVI_Strength': 'last', 
+    'RVI_Trend': 'last', 'RVI_Value': 'last', 'RVI_Volume': 'last',
     
     # 风险/基本面 (已隐含 Rolling 或本身就是截面数据)
     'beta': 'last',
