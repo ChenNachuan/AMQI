@@ -51,71 +51,9 @@ class RankMomentum(BaseFactor):
         # 确保数据按日期和股票代码排序
         df = df.sort_values(['trade_date', 'ts_code']).copy()
         
-        # 确保 trade_date 是字符串格式
-        if df['trade_date'].dtype != 'object':
-            df['trade_date'] = df['trade_date'].astype(str)
-        
-        # 步骤1: 计算每日收益率 R_i,d = (P_i,d - P_i,d-1) / P_i,d-1
-        df['return'] = df.groupby('ts_code')['close'].pct_change()
-        
-        # 步骤2: 计算每日排名并标准化
-        # rank_{i,d} = (y(R_{i,d}) - (N_d+1)/2) / sqrt((N_d+1)(N_d-1)/12)
-import pandas as pd
-import numpy as np
-from factor_library.base_factor import BaseFactor
-
-class RankMomentum(BaseFactor):
-    """
-    Rank Momentum Factor (RankMomentum).
-    
-    该因子通过以下步骤计算：
-    1. 计算每日股票收益率并对其进行排名
-    2. 对每日的排名进行标准化处理（均值为0，标准差为1）
-    3. 对每个月的标准化排名得分取平均，得到月度的排名得分均值
-    4. 计算过去N个月（偏移M个月）的月度排名得分均值的平均值
-    
-    参数：
-        N: 考察时间窗口大小（月份数），默认为6
-        M: 时间偏移量（月份数），默认为1
-    """
-    
-    def __init__(self, N: int = 6, M: int = 1):
-        """
-        初始化排序动量因子
-        
-        Args:
-            N: 考察时间窗口大小（月份数），默认为6
-            M: 时间偏移量（月份数），默认为1
-        """
-        self.N = N
-        self.M = M
-    
-    @property
-    def name(self) -> str:
-        return f"RankMomentum_{self.N}_{self.M}"
-        
-    @property
-    def required_fields(self) -> list:
-        return ['close']
-        
-    def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        计算排序动量因子
-        
-        Args:
-            df: DataFrame包含 'close', 'trade_date', 'ts_code' 列
-            
-        Returns:
-            DataFrame with 'RankMomentum' column, indexed by [trade_date, ts_code]
-        """
-        self.check_dependencies(df)
-        
-        # 确保数据按日期和股票代码排序
-        df = df.sort_values(['trade_date', 'ts_code']).copy()
-        
-        # 确保 trade_date 是字符串格式
-        if df['trade_date'].dtype != 'object':
-            df['trade_date'] = df['trade_date'].astype(str)
+        # 确保 trade_date 是 datetime 格式
+        if not pd.api.types.is_datetime64_any_dtype(df['trade_date']):
+            df['trade_date'] = pd.to_datetime(df['trade_date'].astype(str))
         
         # 步骤1: 计算每日收益率 R_i,d = (P_i,d - P_i,d-1) / P_i,d-1
         df['return'] = df.groupby('ts_code')['close'].pct_change()
@@ -142,7 +80,7 @@ class RankMomentum(BaseFactor):
         
         # 步骤3: 计算月度排名标准化得分均值
         # 添加年月列用于分组
-        df['year_month'] = pd.to_datetime(df['trade_date']).dt.to_period('M')
+        df['year_month'] = df['trade_date'].dt.to_period('M')
         
         monthly_rank = df.groupby(['ts_code', 'year_month'])['rank_std'].mean().reset_index()
         monthly_rank.rename(columns={'rank_std': 'monthly_rank_mean'}, inplace=True)
