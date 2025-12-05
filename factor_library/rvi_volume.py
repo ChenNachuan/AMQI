@@ -72,11 +72,13 @@ class RVIVolumeFactor(BaseFactor):
             
             # Calculate RVI
             range_hl = high_prices - low_prices
-            vigor = np.where(
-                range_hl != 0,
-                (close_prices - open_prices) / range_hl,
-                0.0
-            )
+            with np.errstate(divide='ignore', invalid='ignore'):
+                vigor = np.divide(
+                    close_prices - open_prices,
+                    range_hl,
+                    out=np.zeros_like(close_prices),
+                    where=range_hl != 0
+                )
             
             numerator = np.full(n, np.nan)
             for i in range(3, n):
@@ -86,11 +88,13 @@ class RVIVolumeFactor(BaseFactor):
             for i in range(3, n):
                 denominator[i] = (range_hl[i-3] + 2*range_hl[i-2] + 2*range_hl[i-1] + range_hl[i]) / 6
             
-            rvi = np.where(
-                (denominator != 0) & (~np.isnan(denominator)),
-                numerator / denominator,
-                np.nan
-            )
+            with np.errstate(divide='ignore', invalid='ignore'):
+                rvi = np.divide(
+                    numerator,
+                    denominator,
+                    out=np.full_like(numerator, np.nan),
+                    where=(denominator != 0) & (~np.isnan(denominator))
+                )
             
             # Calculate Signal line
             signal = np.full(n, np.nan)
