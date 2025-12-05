@@ -4,7 +4,7 @@ from .base_factor import BaseFactor
 from sklearn.linear_model import LinearRegression
 
 
-class issuance_growth_rate(BaseFactor):
+class IssuanceGrowthRate(BaseFactor):
     """
     Issuance Growth Rate (IGRO).
     This factor uses linear regression to model the issuance over time and calculates the growth rate.

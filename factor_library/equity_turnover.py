@@ -3,7 +3,7 @@ import numpy as np
 from .base_factor import BaseFactor
 
 
-class equity_turnover(BaseFactor):
+class EquityTurnover(BaseFactor):
     """
     Equity Turnover.
     This factor calculates the ratio of revenue over the average equity of the period.

@@ -3,7 +3,7 @@ import numpy as np
 from .base_factor import BaseFactor
 
 
-class capex_growth_rate(BaseFactor):
+class CapexGrowthRate(BaseFactor):
     """
     Capital Expenditure Abnormal Growth Rate (CI).
     This factor measures the deviation of the current capital expenditure ratio (CE) from its 3-year average,

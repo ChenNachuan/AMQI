@@ -15,8 +15,13 @@ from data.data_loader import load_data, RAW_DATA_DIR, WHITELIST_PATH
 from factor_library import (
     OCFtoNI, APTurnover, APDays, FATurnover, IntCoverage, TaxRate,
     OpAssetChg, EquityRatio, NOAT, FARatio, ROEMomNAGrowth,
-    capex_growth_rate, debt_growth_rate, debt_yoy_growth, epsurplus,
-    equity_turnover, issuance_growth_rate, op_cash_ratio, op_cost_margin, revenue_per_share
+    CapexGrowthRate, DebtGrowthRate, DebtYoyGrowth, Epsurplus,
+    EquityTurnover, IssuanceGrowthRate, OpCashRatio, OpCostMargin, RevenuePerShare,
+    # New additions
+    AccrualsToAssets, CagrCapex, EarningsVolatility, EpChange60D,
+    InterestCoverageRatio, LogMarketCap, Logffmv, PegDyRatio,
+    QuarterlyAbnormalGm, QuarterlyRoic, RoicQoqChange, SalesExpenseRatio,
+    StandardizedFinancialDebtChangeRatio, StandardizedOperatingProfit, TotalAssetTurnover
 )
 from scripts.utils.financial_utils import convert_ytd_to_ttm
 
@@ -210,8 +215,13 @@ def construct_factors():
     factors = [
         OCFtoNI(), APTurnover(), APDays(), FATurnover(), IntCoverage(),
         TaxRate(), OpAssetChg(), EquityRatio(), NOAT(), FARatio(), ROEMomNAGrowth(),
-        capex_growth_rate(), debt_growth_rate(), debt_yoy_growth(), epsurplus(),
-        equity_turnover(), issuance_growth_rate(), op_cash_ratio(), op_cost_margin(), revenue_per_share()
+        CapexGrowthRate(), DebtGrowthRate(), DebtYoyGrowth(), Epsurplus(),
+        EquityTurnover(), IssuanceGrowthRate(), OpCashRatio(), OpCostMargin(), RevenuePerShare(),
+        # New additions
+        AccrualsToAssets(), CagrCapex(), EarningsVolatility(), EpChange60D(),
+        InterestCoverageRatio(), LogMarketCap(), Logffmv(), PegDyRatio(),
+        QuarterlyAbnormalGm(), QuarterlyRoic(), RoicQoqChange(), SalesExpenseRatio(),
+        StandardizedFinancialDebtChangeRatio(), StandardizedOperatingProfit(), TotalAssetTurnover()
     ]
     
     # Store results

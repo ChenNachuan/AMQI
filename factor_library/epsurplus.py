@@ -3,7 +3,7 @@ import numpy as np
 from .base_factor import BaseFactor
 
 
-class epsurplus(BaseFactor):
+class Epsurplus(BaseFactor):
     """
     Earnings Surplus Per Share.
     Earnings surplus is a legal reserve deducted from the post-tax profit, used to offset losses, increase capital, or distribute dividends.

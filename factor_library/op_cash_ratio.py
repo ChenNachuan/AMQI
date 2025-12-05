@@ -3,7 +3,7 @@ import numpy as np
 from .base_factor import BaseFactor
 
 
-class op_cash_ratio(BaseFactor):
+class OpCashRatio(BaseFactor):
     """
     Operating Cash Flow to Revenue Ratio (TTM).
     This ratio measures the net cash flow generated from operating activities in relation to the total revenue over the last 12 months (TTM).

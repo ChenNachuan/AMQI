@@ -1,10 +1,8 @@
+
 import pandas as pd
 import numpy as np
 import os
 import sys
-
-import warnings
-warnings.filterwarnings('ignore', category=FutureWarning)
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -63,11 +61,10 @@ def load_daily_data():
         'hfq_vol': 'vol'
     }
     df = df.rename(columns=rename_dict)
-    df['ret'] = df['pct_chg']
     
     # Load daily_basic for extra fields (free_share, total_share, dv_ttm)
     print("Loading daily_basic for extra fields...")
-    daily_basic = load_data('daily_basic', columns=['ts_code', 'trade_date', 'free_share', 'total_share', 'total_mv', 'dv_ttm', 'turnover_rate', 'circ_mv'])
+    daily_basic = load_data('daily_basic', columns=['ts_code', 'trade_date', 'free_share', 'total_share', 'total_mv', 'dv_ttm'])
     
     # Merge
     df = pd.merge(df, daily_basic, on=['ts_code', 'trade_date'], how='left')
@@ -83,7 +80,7 @@ def load_daily_data():
         
     return df
 
-def construct_technical_factors():
+def debug_technical_factors():
     print("Constructing technical factors...")
     
     # 1. Load Data
@@ -92,15 +89,14 @@ def construct_technical_factors():
     # Ensure columns are lower case
     df.columns = [c.lower() for c in df.columns]
     
-    # Check required columns
-    required = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'vol']
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise ValueError(f"Missing columns in daily data: {missing}")
-        
     # Ensure types
     df['trade_date'] = pd.to_datetime(df['trade_date'].astype(str))
     df = df.sort_values(['ts_code', 'trade_date'])
+    
+    # Take a small subset for debugging
+    unique_codes = df['ts_code'].unique()[:5]
+    df = df[df['ts_code'].isin(unique_codes)].copy()
+    print(f"Debugging with subset of {len(df)} rows and {len(unique_codes)} stocks.")
     
     # 2. Calculate Factors
     factors = [
@@ -132,83 +128,21 @@ def construct_technical_factors():
         FFMC(), DividendYield()
     ]
     
-    # Load market data for AdjustedBetaFP
-    print("Constructing synthetic market data (Equal Weighted) from stock data...")
-    try:
-        # Create synthetic market data from the loaded stock data
-        # We use equal-weighted average of pct_chg
-        market_df = df.groupby('trade_date')[['pct_chg']].mean().reset_index()
-        
-        # Create a synthetic close price starting at 1000
-        # We need to handle the first value properly
-        market_df['close'] = 1000 * (1 + market_df['pct_chg']/100).cumprod()
-        
-        # Ensure trade_date is datetime (it should be)
-        market_df['trade_date'] = pd.to_datetime(market_df['trade_date'])
-        market_df['ret'] = market_df['pct_chg']
-        
-    except Exception as e:
-        print(f"Warning: Could not construct market data: {e}. AdjustedBetaFP will fail.")
-        market_df = None
-
     results = []
     
     for factor in factors:
-        print(f"Calculating {factor.name}...")
+        print(f"Checking {factor.name}...")
         try:
-            if factor.name == 'AdjustedBeta_FP':
-                if market_df is not None:
-                    res = factor.calculate(df, market_df)
-                else:
-                    raise ValueError("Market data not available")
-            elif factor.name == 'DownsideRiskBeta':
-                if market_df is not None:
-                    res = factor.calculate(df, market_df)
-                else:
-                    raise ValueError("Market data not available")
+            res = factor.calculate(df)
+            print(f"  -> Index Type: {type(res.index)}")
+            if isinstance(res.index, pd.MultiIndex):
+                print(f"  -> Index Levels: {res.index.names}")
             else:
-                res = factor.calculate(df)
-            
-            # res is indexed by [trade_date, ts_code]
+                print(f"  -> Index Name: {res.index.name}")
+            print(f"  -> Shape: {res.shape}")
             results.append(res)
         except Exception as e:
-            print(f"Error calculating {factor.name}: {e}")
-            
-    # 3. Merge all technical factors
-    print("Merging technical factors...")
-    if not results:
-        print("No factors calculated.")
-        return
-        
-    # Merge on index
-    tech_df = pd.concat(results, axis=1)
-    
-    # 4. Resample to Monthly (End of Month)
-    print("Resampling to monthly...")
-    tech_df = tech_df.reset_index()
-    tech_df['month'] = tech_df['trade_date'].dt.to_period('M')
-    
-    # We take the last value of the month for each stock
-    monthly_tech = tech_df.groupby(['ts_code', 'month']).last().reset_index()
-    
-    # Restore trade_date (which is the last date of the month in the data)
-    # Actually groupby last() keeps the columns. trade_date will be the date of the last record.
-    
-    # Drop month column
-    monthly_tech = monthly_tech.drop(columns=['month'])
-    
-    # Set index
-    monthly_tech = monthly_tech.set_index(['trade_date', 'ts_code']).sort_index()
-    
-    # 5. Save
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    output_path = os.path.join(base_dir, 'data', 'factors', 'technical_factors.parquet')
-    
-    print(f"Saving to {output_path}...")
-    monthly_tech.to_parquet(output_path)
-    
-    print("Done.")
-    print(monthly_tech.head())
+            print(f"  -> Error calculating {factor.name}: {e}")
 
 if __name__ == "__main__":
-    construct_technical_factors()
+    debug_technical_factors()

@@ -22,20 +22,7 @@ def download_adj_factor():
         
     ts.set_token(token)
     pro = ts.pro_api()
-    
-    # Download adj_factor
-    # We need to loop or download all?
-    # Tushare allows downloading by trade_date or ts_code.
-    # Downloading all history for all stocks is large.
-    # But we can try downloading by date range? No, adj_factor is static per date.
-    # Best to download by ts_code? Too many stocks.
-    # Download by trade_date loop?
-    # Or maybe just download all?
-    
-    # Let's try downloading by date loop.
-    # But adj_factor doesn't change every day for every stock.
-    # Actually, it's better to download by ts_code if we have a list.
-    # Let's load the stock list from stock_basic.parquet
+
     
     stock_basic_path = os.path.join(base_dir, 'data', 'raw_data', 'stock_basic.parquet')
     if not os.path.exists(stock_basic_path):

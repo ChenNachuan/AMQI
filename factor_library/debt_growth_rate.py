@@ -3,7 +3,7 @@ import numpy as np
 from .base_factor import BaseFactor
 
 
-class debt_growth_rate(BaseFactor):
+class DebtGrowthRate(BaseFactor):
     """
     Annual Total Debt Log Growth Rate.
     This factor calculates the log growth rate of total debt from the previous year to the current year.

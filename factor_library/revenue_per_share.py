@@ -3,7 +3,7 @@ import numpy as np
 from .base_factor import BaseFactor
 
 
-class revenue_per_share(BaseFactor):
+class RevenuePerShare(BaseFactor):
     """
     Revenue Per Share (TTM).
     This factor calculates the revenue per share over the last 12 months (TTM).

@@ -3,7 +3,7 @@ import numpy as np
 from .base_factor import BaseFactor
 
 
-class debt_yoy_growth(BaseFactor):
+class DebtYoyGrowth(BaseFactor):
     """
     Annual Total Liabilities YoY Growth.
     This factor calculates the year-over-year (YoY) growth rate of total liabilities.
