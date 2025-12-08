@@ -17,6 +17,9 @@
 \institute{中国人民大学财政金融学院}
 \date{2025年12月8日}
 \usepackage{RenminUniv}
+% 统一标题字体与正文（使用楷体，与 \kaishu 保持一致）
+\setbeamerfont{frametitle}{family=\kaishu,size=\large,series=\bfseries}
+\setbeamerfont{title}{family=\kaishu,series=\bfseries}
 
 % defs
 \def\cmd#1{\texttt{\color{red}\footnotesize $\backslash$#1}}
@@ -170,9 +173,9 @@ $$\text{Obj} = \sum_{i=1}^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \Omega(f_k)$$
         % \includegraphics[width=0.8\textwidth]{images/rolling_window.pdf}
         \begin{tikzpicture}[xscale=0.8, yscale=0.5]
             \draw[->] (0,0) -- (10,0) node[right] {Time};
-            \fill[blue!30] (0,0.2) rectangle (4,0.8) node[midway, black] {\tiny Train (36m)};
+            \fill[blue!30] (0,0.2) rectangle (4,0.8) node[midway, black] {\tiny Train (24m)};
             \fill[red!30] (4,0.2) rectangle (5,0.8) node[midway, black] {\tiny Test};
-            \fill[blue!30] (1,-0.8) rectangle (5,-0.2) node[midway, black] {\tiny Train (36m)};
+            \fill[blue!30] (1,-0.8) rectangle (5,-0.2) node[midway, black] {\tiny Train (24m)};
             \fill[red!30] (5,-0.8) rectangle (6,-0.2) node[midway, black] {\tiny Test};
             \node at (2.5, -1.5) {\footnotesize \textit{Walk-Forward Validation}};
         \end{tikzpicture}
@@ -242,10 +245,10 @@ $$\text{Var}(\text{Ensemble}) = \rho \sigma^2 + \frac{1-\rho}{K} \sigma^2$$
         \hline
         \multirow{2}{*}{\textbf{Indicator}} & \multicolumn{2}{c|}{\textbf{Random Forest (RF)}} & \multicolumn{2}{c|}{\textbf{XGBoost (XGB)}} & \textbf{Benchmark} \\ \cline{2-6} 
          & \textbf{VW} & \textbf{EW} & \textbf{VW} & \textbf{EW} & \textit{CSI 500} \\ \hline
-        \textbf{Ann. Return} & 23.16\% & 33.49\% & 22.17\% & 35.27\% & $\sim$8.5\% \\ 
-        \textbf{Sharpe Ratio} & 0.8618 & 1.1374 & 0.7488 & 1.1317 & 0.35 \\ 
-        \textbf{Max Drawdown} & -64.49\% & -62.61\% & -74.68\% & -65.04\% & -72.0\% \\ 
-        \textbf{Win Rate} & 60.70\% & 62.81\% & 60.70\% & 63.16\% & 52.1\% \\ \hline
+        \textbf{Ann. Return} & 23.16\% & 33.49\% & 22.17\% & 35.27\% & 14.37\% \\ 
+        \textbf{Sharpe Ratio} & 0.7815 & 1.0662 & 0.6757 & 1.0623 & 0.3975 \\ 
+        \textbf{Max Drawdown} & -64.49\% & -62.61\% & -74.68\% & -65.04\% & -69.27\% \\ 
+        \textbf{Win Rate} & 60.70\% & 62.81\% & 60.70\% & 63.16\% & 47.37\% \\ \hline
         \end{tabular}
         }
     \end{table}
@@ -289,7 +292,7 @@ $$\text{Var}(\text{Ensemble}) = \rho \sigma^2 + \frac{1-\rho}{K} \sigma^2$$
         \vspace{-0.2cm}
         \footnotesize
         \begin{itemize}
-            \item \textbf{稳定性}: 滚动均值长期位于 0 轴上方，极少击穿安全线。
+            \item \textbf{稳定性}: 滚动均值长期位于 0 轴上方。
             \item \textbf{高信噪比}: \textbf{ICIR > 1.0} 表现优秀。
         \end{itemize}
     \end{columns}
@@ -400,58 +403,62 @@ $$R_{p} = \alpha' + \beta_{MKT} R_{MKT} + \beta_{SMB} R_{SMB} + \beta_{VMG} R_{V
         XGBoost (XGB) & 7.22 & < 0.0001 & Reject $H_0$ \\ \hline
         \end{tabular}
     \end{table}
-    \begin{alertblock}{结论}
+    \textbf{结论：}
         \begin{itemize}
             \item \textbf{统计学意义}: 强烈拒绝零假设。这证明 Q1-Q5 组合中存在无法被市场、市值和价值因子解释的显著 Alpha。
             \item \textbf{经济学意义}: 机器学习模型确实挖掘到了独立于传统因子之外的有效选股逻辑。
         \end{itemize}
-    \end{alertblock}
+    
 \end{frame}
-\subsection{CNE-6模型和行业收益归因}
-\begin{frame}{CNE-6 模型与行业收益归因}
+\subsection{CNE-5模型和行业收益归因}
+\begin{frame}{CNE-5 模型与行业收益归因}
     \begin{itemize}
         \item \textbf{回归方程} (每月横截面回归):
         \begin{equation*}
-            R_{i, t+1} = \gamma_{ML} \cdot \hat{y}_{i,t} + \sum_{k=1}^{10} \gamma_{Style, k} \cdot F_{Style, k} + \sum_{j=1}^{110} \gamma_{Ind, j} \cdot D_{Ind, j} + \epsilon_{i,t}
+            R_{i, t+1} = \gamma_{ML} \cdot \hat{y}_{i,t} + \sum_{k=1}^{10} \gamma_{Style, k} \cdot F_{Style, k} + \sum_{j=1}^{31} \gamma_{Ind, j} \cdot D_{Ind, j} + \epsilon_{i,t}
         \end{equation*}
-        \item 控制变量: 10个 Barra 因子 + 110个申万行业变量
+        \item 控制变量: 10个 Barra 因子 + 31个申万一级行业变量
     \end{itemize}
 
-    \begin{columns}
-        % 左侧：核心统计表
-        \column{0.45\textwidth}
-        \begin{table}[]
-            \centering
-            \renewcommand{\arraystretch}{1.1}
-            \resizebox{\textwidth}{!}{%
-            \begin{tabular}{l|c|c}
-            \hline
-            Factor & Return ($\gamma$) & t-stat \\ \hline
-            ML Score & 22.80\% & 20.65 \\ \hline
-            Size & -1.14\% & -7.59 \\ 
-            Momentum & 0.17\% & 2.30 \\ 
-            Liquidity & -0.46\% & -4.31 \\ 
-            Earnings Yield & 0.25\% & 3.90 \\ 
-            Beta & 0.17\% & 2.07 \\ \hline
-            \end{tabular}%
-            }
-        \end{table}
-
-        % 右侧：累计纯收益图
-        \column{0.55\textwidth}
-        结论:\\
-        在剥离了所有风格和行业干扰后，ML 因子的纯收益 t-stat 高达 \textbf{20.65}，证明策略拥有极其纯粹且显著的 \textbf{Alpha}，而非简单的风格暴露。
-    \end{columns}
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.2}
+        \setlength{\tabcolsep}{8pt} % 增加列间距
+        \resizebox{0.95\textwidth}{!}{%
+        \begin{tabular}{l|cc|cc}
+        \hline
+        \multirow{2}{*}{\textbf{Factor}} & \multicolumn{2}{c|}{Random Forest (RF)} & \multicolumn{2}{c}{XGBoost (XGB)} \\ \cline{2-5} 
+         & Return ($\gamma$) & t-stat & Return ($\gamma$) & t-stat \\ \hline
+    	\textbf{ML Score (Pre\_ret)} & \textbf{22.71\%} & \textbf{20.99} & \textbf{12.73\%} & \textbf{15.30} \\ \hline
+        Size & -1.18\% & -7.79 & -1.61\% & -10.01 \\ 
+        Non-linear Size & -0.72\% & -7.84 & -1.05\% & -10.87 \\ 
+        Liquidity & -0.44\% & -4.10 & -0.59\% & -5.48 \\ 
+        Earnings Yield & 0.21\% & 3.38 & 0.20\% & 3.22 \\ 
+        Momentum & 0.18\% & 2.34 & 0.14\% & 1.92 \\ \hline
+        \end{tabular}%
+        }
+    \end{table}
 
 
 \end{frame}
+
+\begin{frame}{CNE-5 风格归因: 可视化与结论}
+    \begin{figure}
+        \centering
+        % 请确保上传的文件名是 Barra_results.pdf，且路径正确
+        % 调整高度以适应页面，保持长宽比
+        \includegraphics[height=0.90\textheight]{pic/Barra_results.pdf}
+        %\caption{RF vs XGB Cross-Sectional T-Statistics}
+    \end{figure}
+\end{frame}
+
 \section{参考文献}
 
 
-\begin{frame}[allowframebreaks]{参考文献}
+\begin{frame}{参考文献}
     % 若正文中未显式引用，使用 nocite 列出 bib 中所有条目
     \nocite{*}
-    \bibliographystyle{unsrt}
+    \tiny\bibliographystyle{unsrt}
     \bibliography{ref}
     % 如果参考文献太多的话，可以像下面这样调整字体：
     % \tiny\bibliographystyle{alpha}
@@ -462,7 +469,7 @@ $$R_{p} = \alpha' + \beta_{MKT} R_{MKT} + \beta_{SMB} R_{SMB} + \beta_{VMG} R_{V
         {\Huge 请大家批评指正！}\\
     \end{center}
     \vfill % 推到底部
-    \footquote{本项目代码已开源于 \textcolor{blue}{\url{https://github.com/nachuanchen/AMQI}}}\\
+    \footquote{\footnotesize 本项目代码已开源于 \textcolor{blue}{\url{https://github.com/nachuanchen/AMQI}}}\\
 \end{frame}
 
 \end{document}
