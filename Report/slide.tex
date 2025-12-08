@@ -298,6 +298,69 @@ $$\text{Var}(\text{Ensemble}) = \rho \sigma^2 + \frac{1-\rho}{K} \sigma^2$$
     \end{columns}
 \end{frame}
 
+\subsection{Fama-MacBeth回归分析}
+
+\begin{frame}{Fama-MacBeth 横截面回归分析}
+
+    \begin{itemize}
+        \item \textbf{回归方程} (每月 $t$ 进行横截面回归):
+        \begin{equation*}
+            R_{i, t+1} = \lambda_0 + \lambda_{ML} \cdot \hat{y}_{i,t} + \lambda_{Size} \cdot \text{Size}_{i,t} + \lambda_{Bm} \cdot \text{Bm}_{i,t} + \dots + \epsilon_{i,t}
+        \end{equation*}
+        \item \textbf{控制变量}: 市值, 账面市值比, 12个月动量, 非流动性。
+    \end{itemize}
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.2}
+        \resizebox{\textwidth}{!}{%
+        \begin{tabular}{l|cc|cc}
+        \hline
+        \multirow{2}{*}{\textbf{Factor}} & \multicolumn{2}{c|}{\textbf{XGBoost (XGB)}} & \multicolumn{2}{c}{\textbf{Random Forest (RF)}} \\ \cline{2-5} 
+         & \textbf{Coeff ($\lambda$)} & \textbf{t-stat} & \textbf{Coeff ($\lambda$)} & \textbf{t-stat} \\ \hline
+        \textbf{Intercept} & -0.0544 & -8.46 & -0.1145 & -13.49 \\ 
+        \textbf{Model Score (\texttt{pred\_ret})} & \textbf{0.1363} & \textbf{18.22} & \textbf{0.2559} & \textbf{21.24} \\ \hline
+        \end{tabular}%
+        }
+    \end{table}
+
+    \textbf{结论:}
+    \begin{itemize}
+        \item 两个模型的预测分数$t$值均远超临界值，分别为 \textbf{18.22} 和 \textbf{21.24}，表明其具有极强的独立预测能力。
+        \item 即使在控制了显著的\textbf{小市值效应} ($\lambda_{Size} < 0$) 后，机器学习因子的显著性依然未被削弱。
+    \end{itemize}
+\end{frame}
+
+\subsection{CNE-5模型和行业检验}
+\begin{frame}{CNE-5 模型和行业检验}
+    \begin{itemize}
+        \item \textbf{回归方程} (每月横截面回归):
+        \begin{equation*}
+            R_{i, t+1} = \gamma_{ML} \cdot \hat{y}_{i,t} + \sum_{k=1}^{10} \gamma_{Style, k} \cdot F_{Style, k} + \sum_{j=1}^{31} \gamma_{Ind, j} \cdot D_{Ind, j} + \epsilon_{i,t}
+        \end{equation*}
+        \item 控制变量: 10个 Barra 因子 + 31个申万一级行业变量
+    \end{itemize}
+
+    \begin{table}[]
+        \centering
+        \renewcommand{\arraystretch}{1.2}
+        \setlength{\tabcolsep}{8pt} % 增加列间距
+        \resizebox{0.95\textwidth}{!}{%
+        \begin{tabular}{l|cc|cc}
+        \hline
+        \multirow{2}{*}{\textbf{Factor}} & \multicolumn{2}{c|}{Random Forest (RF)} & \multicolumn{2}{c}{XGBoost (XGB)} \\ \cline{2-5} 
+         & Return ($\gamma$) & t-stat & Return ($\gamma$) & t-stat \\ \hline
+    	\textbf{ML Score (Pre\_ret)} & \textbf{22.71\%} & \textbf{20.99} & \textbf{12.73\%} & \textbf{15.30} \\ \hline
+        Size & -1.18\% & -7.79 & -1.61\% & -10.01 \\ 
+        Non-linear Size & -0.72\% & -7.84 & -1.05\% & -10.87 \\ 
+        Liquidity & -0.44\% & -4.10 & -0.59\% & -5.48 \\ 
+        Earnings Yield & 0.21\% & 3.38 & 0.20\% & 3.22 \\ 
+        Momentum & 0.18\% & 2.34 & 0.14\% & 1.92 \\ \hline
+        \end{tabular}%
+        }
+    \end{table}
+
+
+\end{frame}
 
 \subsection{CH3\&CH4模型分析}
 \begin{frame}{CH3\&CH4模型分析: Random Forest (RF)}
@@ -354,38 +417,6 @@ $$R_{p} = \alpha' + \beta_{MKT} R_{MKT} + \beta_{SMB} R_{SMB} + \beta_{VMG} R_{V
     \end{itemize}
 \end{frame}
 
-\subsection{Fama-MacBeth回归分析}
-
-\begin{frame}{Fama-MacBeth 横截面回归分析}
-
-    \begin{itemize}
-        \item \textbf{回归方程} (每月 $t$ 进行横截面回归):
-        \begin{equation*}
-            R_{i, t+1} = \lambda_0 + \lambda_{ML} \cdot \hat{y}_{i,t} + \lambda_{Size} \cdot \text{Size}_{i,t} + \lambda_{Bm} \cdot \text{Bm}_{i,t} + \dots + \epsilon_{i,t}
-        \end{equation*}
-        \item \textbf{控制变量}: 市值, 账面市值比, 12个月动量, 非流动性。
-    \end{itemize}
-    \begin{table}[]
-        \centering
-        \renewcommand{\arraystretch}{1.2}
-        \resizebox{\textwidth}{!}{%
-        \begin{tabular}{l|cc|cc}
-        \hline
-        \multirow{2}{*}{\textbf{Factor}} & \multicolumn{2}{c|}{\textbf{XGBoost (XGB)}} & \multicolumn{2}{c}{\textbf{Random Forest (RF)}} \\ \cline{2-5} 
-         & \textbf{Coeff ($\lambda$)} & \textbf{t-stat} & \textbf{Coeff ($\lambda$)} & \textbf{t-stat} \\ \hline
-        \textbf{Intercept} & -0.0544 & -8.46 & -0.1145 & -13.49 \\ 
-        \textbf{Model Score (\texttt{pred\_ret})} & \textbf{0.1363} & \textbf{18.22} & \textbf{0.2559} & \textbf{21.24} \\ \hline
-        \end{tabular}%
-        }
-    \end{table}
-
-    \textbf{结论:}
-    \begin{itemize}
-        \item 两个模型的预测分数$t$值均远超临界值，分别为 \textbf{18.22} 和 \textbf{21.24}，表明其具有极强的独立预测能力。
-        \item 即使在控制了显著的\textbf{小市值效应} ($\lambda_{Size} < 0$) 后，机器学习因子的显著性依然未被削弱。
-    \end{itemize}
-\end{frame}
-
 \subsection{GRS检验}
 \begin{frame}{GRS 联合显著性检验}
     \begin{itemize}
@@ -410,46 +441,38 @@ $$R_{p} = \alpha' + \beta_{MKT} R_{MKT} + \beta_{SMB} R_{SMB} + \beta_{VMG} R_{V
         \end{itemize}
     
 \end{frame}
-\subsection{CNE-5模型和行业收益归因}
-\begin{frame}{CNE-5 模型与行业收益归因}
+
+\begin{frame}{收益归因分析 : 方法论与累计收益分解}
+    \textbf{1. 核心归因公式}
+    \begin{equation*}
+        R_{Port} = \text{Market Exp} \cdot f_{Mkt} + \sum \text{Style Exp} \cdot f_{Style} + \sum \text{Ind Exp} \cdot f_{Ind} + \text{Alpha}
+    \end{equation*}
     \begin{itemize}
-        \item \textbf{回归方程} (每月横截面回归):
-        \begin{equation*}
-            R_{i, t+1} = \gamma_{ML} \cdot \hat{y}_{i,t} + \sum_{k=1}^{10} \gamma_{Style, k} \cdot F_{Style, k} + \sum_{j=1}^{31} \gamma_{Ind, j} \cdot D_{Ind, j} + \epsilon_{i,t}
-        \end{equation*}
-        \item 控制变量: 10个 Barra 因子 + 31个申万一级行业变量
+        \item \textbf{Alpha (残差项)}: 代表模型依靠选股能力获得的\textbf{纯超额收益}。
     \end{itemize}
 
-    \begin{table}[]
-        \centering
-        \renewcommand{\arraystretch}{1.2}
-        \setlength{\tabcolsep}{8pt} % 增加列间距
-        \resizebox{0.95\textwidth}{!}{%
-        \begin{tabular}{l|cc|cc}
-        \hline
-        \multirow{2}{*}{\textbf{Factor}} & \multicolumn{2}{c|}{Random Forest (RF)} & \multicolumn{2}{c}{XGBoost (XGB)} \\ \cline{2-5} 
-         & Return ($\gamma$) & t-stat & Return ($\gamma$) & t-stat \\ \hline
-    	\textbf{ML Score (Pre\_ret)} & \textbf{22.71\%} & \textbf{20.99} & \textbf{12.73\%} & \textbf{15.30} \\ \hline
-        Size & -1.18\% & -7.79 & -1.61\% & -10.01 \\ 
-        Non-linear Size & -0.72\% & -7.84 & -1.05\% & -10.87 \\ 
-        Liquidity & -0.44\% & -4.10 & -0.59\% & -5.48 \\ 
-        Earnings Yield & 0.21\% & 3.38 & 0.20\% & 3.22 \\ 
-        Momentum & 0.18\% & 2.34 & 0.14\% & 1.92 \\ \hline
-        \end{tabular}%
-        }
-    \end{table}
-
-
+    \begin{figure}
+            \centering
+            \includegraphics[width=\textwidth, height=0.45\textheight, keepaspectratio]{pic/combined_attribution.pdf}
+    \end{figure}
+    \vspace{-0.3cm}
+    \footnotesize
+    \begin{itemize}
+        \item Alpha 贡献: 图中顶部的\textcolor{red!80!black}{\textbf{红色区域}}持续显著增长，有强大的选股能力。
+        \item \textbf{风格影响}: \textcolor{blue!70!black}{\textbf{蓝色区域}}有一定的正向贡献，说明策略部分收益来自于风格偏好（如小市值）。
+    \end{itemize}
+            % 这里可以放一个小的示意图或者留白，主要靠文字解释逻辑
+    
 \end{frame}
 
-\begin{frame}{CNE-5 风格归因: 可视化与结论}
+\begin{frame}{收益归因分析: 风格暴露}
     \begin{figure}
-        \centering
-        % 请确保上传的文件名是 Barra_results.pdf，且路径正确
-        % 调整高度以适应页面，保持长宽比
-        \includegraphics[height=0.90\textheight]{pic/Barra_results.pdf}
-        %\caption{RF vs XGB Cross-Sectional T-Statistics}
+            \centering
+            \includegraphics[width=0.92\textwidth, keepaspectratio]{pic/combined_style_exposures.pdf}
     \end{figure}
+        
+    \textbf{风格差异}: 两个策略在Size 和Non\_linear\_size 上暴露均相反，说明RF捕捉了A股长期的小市值红利，而XGBoost则利用非线性交互逻辑在大市值股票中寻找超额收益。
+        
 \end{frame}
 
 \section{参考文献}
