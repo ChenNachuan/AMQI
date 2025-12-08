@@ -23,13 +23,13 @@ class StandardizedFinancialDebtChangeRatio(BaseFactor):
         self.check_dependencies(df)
 
         # Calculate current financial liabilities
-        current_financial_liabilities = (df['st_borr'] + df['trading_fl'] + df['notes_payable'] +
-                                         df['non_cur_liab_due_1y'] + df['lt_borr'] + df['bond_payable'])
+        current_financial_liabilities = (df['st_borr'].fillna(0) + df['trading_fl'].fillna(0) + df['notes_payable'].fillna(0) +
+                                         df['non_cur_liab_due_1y'].fillna(0) + df['lt_borr'].fillna(0) + df['bond_payable'].fillna(0))
 
         # Calculate previous year's financial liabilities
-        previous_year_financial_liabilities = (df['st_borr'].shift(4) + df['trading_fl'].shift(4) +
-                                               df['notes_payable'].shift(4) + df['non_cur_liab_due_1y'].shift(4) +
-                                               df['lt_borr'].shift(4) + df['bond_payable'].shift(4))
+        previous_year_financial_liabilities = (df['st_borr'].shift(4).fillna(0) + df['trading_fl'].shift(4).fillna(0) +
+                                               df['notes_payable'].shift(4).fillna(0) + df['non_cur_liab_due_1y'].shift(4).fillna(0) +
+                                               df['lt_borr'].shift(4).fillna(0) + df['bond_payable'].shift(4).fillna(0))
 
         # Calculate average total assets
         avg_total_assets = (df['total_assets'] + df['total_assets'].shift(1)) / 2
