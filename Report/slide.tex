@@ -1,12 +1,15 @@
 % two color theme fdu_red and fdu_blue, choose your preference main document and switch in the menu
 % github repo https://github.com/milanmarks/FDU-Beamer-Theme
 \documentclass{beamer}
-\usepackage{ctex, hyperref}
+% 恢复 ctex 默认字体配置（请使用 xelatex 或 lualatex 编译）
+\usepackage[UTF8]{ctex}
+\usepackage{hyperref}
 \usepackage[T1]{fontenc}
 
 % other packages
 \usepackage{latexsym,amsmath,xcolor,multicol,booktabs,calligra,multirow}
 \usepackage{graphicx,pstricks,listings,stackengine}
+\usepackage{tikz}
 
 \author{陈纳川、王子卿、张涵石、吴信岩}
 \title{基于机器学习算法的多因子选股策略}
@@ -132,7 +135,7 @@
 \subsection{XGBoost 模型}
 
 \begin{frame}{XGBoost 模型简介}
-    XGBoost（极端梯度提升）算法是一种基于 Boosting 框架，串行训练 $K$ 棵分类回归树 (CART)的集成学习算法。
+    XGBoost（极端梯度提升算法）是一种基于 Boosting 框架，串行训练 $K$ 棵分类回归树 (CART)的集成学习算法。
     通过在每一棵新树 $f_k$ 都在拟合上一轮预测的残差，逐步逼近真实值。
     $$\hat{y}_i^{(t)} = \sum_{k=1}^t f_k(x_i) = \hat{y}_i^{(t-1)} + f_t(x_i)$$
 相比传统的树算法，XGBoost 在目标函数中引入了显式的正则化项：
@@ -442,14 +445,14 @@ $$R_{p} = \alpha' + \beta_{MKT} R_{MKT} + \beta_{SMB} R_{SMB} + \beta_{VMG} R_{V
 
 
 \end{frame}
-\section{总结与展望}
-
 \section{参考文献}
 
 
-\begin{frame}[allowframebreaks]
+\begin{frame}[allowframebreaks]{参考文献}
+    % 若正文中未显式引用，使用 nocite 列出 bib 中所有条目
+    \nocite{*}
+    \bibliographystyle{unsrt}
     \bibliography{ref}
-    \bibliographystyle{alpha}
     % 如果参考文献太多的话，可以像下面这样调整字体：
     % \tiny\bibliographystyle{alpha}
 \end{frame}
