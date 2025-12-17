@@ -48,14 +48,14 @@ def construct_factors():
     # Merge daily and daily_basic
     market_data = pd.merge(daily, daily_basic, on=['ts_code', 'trade_date'], how='inner')
     
-    # Resample to Monthly for final output
-    print("正在将市场数据重采样为月频...")
-    market_data['month'] = market_data['trade_date'].dt.to_period('M')
+    # Resample to Weekly for final output
+    print("正在将市场数据重采样为周频 (Friday)...")
+    market_data['week'] = market_data['trade_date'].dt.to_period('W-FRI')
     market_data = market_data.sort_values('trade_date')
     
-    # Calculate Monthly Return (ret) and Size (size)
-    # Group by ts_code and month
-    print("正在将市场数据重采样为月频 (Vectorized)...")
+    # Calculate Weekly Return (ret) and Size (size)
+    # Group by ts_code and week
+    print("正在将市场数据重采样为周频 (Vectorized)...")
     
     # 构造聚合字典
     agg_dict = {
@@ -67,7 +67,7 @@ def construct_factors():
     if 'pb' in market_data.columns:
         agg_dict['pb'] = 'last'
         
-    monthly_market = market_data.groupby(['ts_code', 'month']).agg(agg_dict).reset_index()
+    monthly_market = market_data.groupby(['ts_code', 'week']).agg(agg_dict).reset_index()
     monthly_market['ret'] = monthly_market.groupby('ts_code')['close'].pct_change()
     
     # Rename total_mv to size for factor consistency
@@ -307,7 +307,7 @@ def construct_factors():
     # Original: Bm, Ep
     # New: [f.name for f in factors]
     
-    base_cols = ['ts_code', 'trade_date', 'month', 'ret', 'size', 'Bm', 'Ep']
+    base_cols = ['ts_code', 'trade_date', 'week', 'ret', 'size', 'Bm', 'Ep']
     new_factor_cols = [f.name for f in factors]
     
     cols_to_keep = base_cols + new_factor_cols

@@ -2,60 +2,84 @@
 Download dividend and stock split data from Tushare.
 分红送股 - Dividend Data
 """
+import argparse
 import sys
-from pathlib import Path
-import pandas as pd
 import time
+from pathlib import Path
+
+import pandas as pd
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from data.data_loader.utils import init_tushare_api, save_to_parquet, generate_year_ranges, log_progress
+from data.data_loader.utils import (
+    init_tushare_api,
+    load_stock_basic,
+    log_progress,
+    save_to_parquet,
+)
+
+START_DATE = "20230101"
+END_DATE = "20251215"
+SLEEP_SECONDS = 0.4
+# User requested 10 originally, then 100 failed. 
+# Tushare dividend API might have limits on number of codes per query.
+# Let's use a safe batch size of 50.
+BATCH_SIZE = 1
 
 
-def download_dividend():
-    """Download dividend data year by year."""
-    print("="*60)
-    print("Downloading Dividend Data (分红送股)")
-    print("="*60)
-    
+def download_dividend(refresh_stock_list: bool = False):
+    """Download dividend data using dynamic ts_code universe, batch processing."""
+    print("=" * 60)
+    print(f"Downloading Dividend Data (分红送股) - Batch Size: {BATCH_SIZE}")
+    print("=" * 60)
+
     # Initialize API
     pro = init_tushare_api()
     
-    # Generate year ranges from 2000 to 2025
-    years = generate_year_ranges(2000, 2025)
-    print(f"\nWill download {len(years)} years of data (2000 to 2025)")
+    # Load stock list
+    stock_df = load_stock_basic(pro=pro, refresh=refresh_stock_list)
+    ts_codes = stock_df['ts_code'].tolist()
+    total_codes = len(ts_codes)
+    
+    print(f"\nTargeting {total_codes:,} securities")
     
     all_data = []
     
-    for i, year in enumerate(years, 1):
-        # Download by announcement date (ann_date)
-        start_date = f"{year}0101"
-        end_date = f"{year}1231"
+    # Batch processing
+    for i in range(0, total_codes, BATCH_SIZE):
+        # Explicitly calculate end index to handle the last batch safely
+        end_idx = min(i + BATCH_SIZE, total_codes)
+        batch_codes = ts_codes[i : end_idx]
+        
+        if not batch_codes:
+            continue
+            
+        codes_str = ",".join(batch_codes)
         
         try:
-            df = pro.dividend(ann_date='', start_date=start_date, end_date=end_date)
+            # Query dividend data
+            # Retry logic could be added here if needed
+            df = pro.dividend(ts_code=codes_str, start_date=START_DATE, end_date=END_DATE)
             
             if not df.empty:
                 all_data.append(df)
-                log_progress(i, len(years), f"Downloaded {year}")
-            else:
-                print(f"No data for {year}")
             
-            # Sleep to avoid API rate limits
-            time.sleep(0.3)
+            # Progress logging
+            last_stock = batch_codes[-1]
+            log_progress(end_idx, total_codes, f"Processed batch ending {last_stock}")
             
-        except Exception as e:
-            print(f"Error downloading {year}: {e}")
-            time.sleep(1)
-            continue
-    
+        except Exception as exc:
+            print(f"Error downloading batch {i}-{end_idx}: {exc}")
+        finally:
+            time.sleep(SLEEP_SECONDS)
+
     # Concatenate all data
     if all_data:
         print("\nCombining all data...")
         final_df = pd.concat(all_data, ignore_index=True)
         
-        # Remove duplicates if any
+        # Remove duplicates
         final_df = final_df.drop_duplicates(subset=['ts_code', 'end_date', 'ann_date'], keep='last')
         
         # Save to parquet
@@ -64,8 +88,15 @@ def download_dividend():
         print(f"\n✓ Dividend data download completed!")
         print(f"  Total records: {len(final_df):,}")
     else:
-        print("\n✗ No data was downloaded")
+        print("\n✗ No data was downloaded. Please check date range or token permissions.")
 
 
 if __name__ == "__main__":
-    download_dividend()
+    parser = argparse.ArgumentParser(description="Download dividend data from Tushare")
+    parser.add_argument(
+        "--refresh-stock-list",
+        action="store_true",
+        help="Refresh stock_basic cache before downloading",
+    )
+    args = parser.parse_args()
+    download_dividend(refresh_stock_list=args.refresh_stock_list)

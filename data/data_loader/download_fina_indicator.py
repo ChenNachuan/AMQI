@@ -11,40 +11,42 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from data.data_loader.utils import (
     init_tushare_api,
-    iter_ts_code_date_ranges,
     load_stock_basic,
     log_progress,
     save_to_parquet,
 )
 
-START_DATE = "20000101"
-END_DATE = "20251231"
-SLEEP_SECONDS = 0.12
+START_DATE = "20230101"
+END_DATE = "20251215"
+SLEEP_SECONDS = 0.4
+BATCH_SIZE = 50
 
 
 def download_fina_indicator(refresh_stock_list: bool = False):
-    """Download financial indicator data using dynamic ts_code universe."""
+    """Download financial indicator data using dynamic ts_code universe, 5 stocks at a time."""
     print("=" * 60)
-    print("Downloading Financial Indicator Data (财务指标数据)")
+    print(f"Downloading Financial Indicator Data (财务指标数据) - Batch Size: {BATCH_SIZE}")
     print("=" * 60)
 
     pro = init_tushare_api()
 
     stock_df = load_stock_basic(pro=pro, refresh=refresh_stock_list)
-    code_ranges = list(iter_ts_code_date_ranges(stock_df, START_DATE, END_DATE))
-    print(f"\nTracking {len(code_ranges):,} securities from {START_DATE} to {END_DATE}")
+    ts_codes = stock_df['ts_code'].tolist()
+    print(f"\nTargeting {len(ts_codes):,} securities from {START_DATE} to {END_DATE}")
 
     all_data = []
 
-    for idx, (ts_code, start_date, end_date) in enumerate(code_ranges, 1):
+    for i in range(0, len(ts_codes), BATCH_SIZE):
+        batch_codes = ts_codes[i : i + BATCH_SIZE]
+        codes_str = ",".join(batch_codes)
+        
         try:
-            df = pro.fina_indicator(ts_code=ts_code, start_date=start_date, end_date=end_date)
+            df = pro.fina_indicator(ts_code=codes_str, start_date=START_DATE, end_date=END_DATE)
             if not df.empty:
                 all_data.append(df)
-            if idx % 50 == 0 or not df.empty:
-                log_progress(idx, len(code_ranges), f"Processed {ts_code}")
+            log_progress(i + len(batch_codes), len(ts_codes), f"Processed batch ending {batch_codes[-1]}")
         except Exception as exc:
-            print(f"Error downloading {ts_code} ({start_date}-{end_date}): {exc}")
+            print(f"Error downloading batch starting {batch_codes[0]}: {exc}")
         finally:
             time.sleep(SLEEP_SECONDS)
 

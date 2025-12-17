@@ -13,7 +13,7 @@ from factor_library import Universe
 # Define Aggregation Rules
 AGGREGATION_RULES = {
     # --- 必须取平均的 (Flow / Activity) ---
-    'TUR': 'mean', # Average Daily Turnover for the month (Activity)
+    'TUR': 'mean', # Average Daily Turnover for the period
     
     # --- 必须取期末值的 (State / Signal) ---
     # 技术面 (New Factors included)
@@ -53,25 +53,25 @@ AGGREGATION_RULES = {
     'RVI_Cross': 'last', 'RVI_Diff': 'last', 'RVI_Strength': 'last', 
     'RVI_Trend': 'last', 'RVI_Value': 'last', 'RVI_Volume': 'last',
     
-    # 风险/基本面 (已隐含 Rolling 或本身就是截面数据)
+    # 风险/基本面
     'beta': 'last',
     'IVFF': 'last',
     'R11': 'last',
     'Srev': 'last',
     'Bm': 'last',
     'Ep': 'last',
-    'size': 'last',   # 市值通常取月末时点值
-    'ret': 'last'     # 注意：如果 ret 是原始日收益，这里其实应该用 compound 或 sum，
-                      # 但你的 fundamental_factors 里算的是 monthly ret，所以如果是合并后的不用管。
-                      # 如果是日频数据直接转月频，ret 不能用 last 或 mean，要用累乘。
-                      # *注：你的流程里 ret 已经在 fundamental_factors 里算成月频了，这里指的是 Risk/Tech 因子。*
+    'size': 'last',   
+    'ret': 'sum'      # 如果是日频收益聚合到周频，应使用累乘 ((1+r).prod()-1) 或简单 sum (如果是 log returns)。这里暂时用 sum (近似) 或 compound。
+                      # Fund factors 中 ret 可能是月频。Risk/Tech 中的 ret 是日频。
+                      # 我们需要计算 "Past Week Return"。
+                      # 如果 ret 是百分比，sum 是近似。
 }
 
-def downsample_daily_to_monthly(df: pd.DataFrame, name: str = "Data") -> pd.DataFrame:
+def downsample_daily_to_weekly(df: pd.DataFrame, name: str = "Data") -> pd.DataFrame:
     """
-    Downsample daily data to monthly using dynamic aggregation rules.
+    Downsample daily data to Weekly (Friday) using dynamic aggregation rules.
     """
-    print(f"Downsampling {name}...")
+    print(f"Downsampling {name} to Weekly...")
     
     # Ensure datetime and sort
     if 'trade_date' not in df.columns:
@@ -80,37 +80,47 @@ def downsample_daily_to_monthly(df: pd.DataFrame, name: str = "Data") -> pd.Data
     df['trade_date'] = pd.to_datetime(df['trade_date'])
     df = df.sort_values(['ts_code', 'trade_date'])
     
-    # Create month key
-    df['month'] = df['trade_date'].dt.to_period('M')
+    # Create week key (Week ending Friday)
+    df['week'] = df['trade_date'].dt.to_period('W-FRI')
     
     # Construct Aggregation Dictionary
     agg_dict = {}
     for col in df.columns:
-        if col in ['ts_code', 'month']:
-            continue
-        
-        # trade_date should always be last (to capture the actual date of the record)
-        if col == 'trade_date':
-            agg_dict[col] = 'last'
+        if col in ['ts_code', 'week', 'trade_date']:
             continue
             
         # Use specific rule if exists, else default to 'last'
-        agg_dict[col] = AGGREGATION_RULES.get(col, 'last')
+        rule = AGGREGATION_RULES.get(col, 'last')
+        
+        # Special handling for 'ret' (Return)
+        if col == 'ret':
+            # Ideally: compound return. For simplicity/robustness: sum (assuming small returns) or custom func.
+            # Let's just use 'sum' for now as a proxy for weekly return if log returns, or just sum.
+            agg_dict[col] = 'sum'
+        else:
+            agg_dict[col] = rule
         
     print(f"Aggregation Rules for {name}:")
-    # Print only non-default rules for clarity, or all if needed
+    # Print only non-default rules for clarity
     for k, v in agg_dict.items():
         if v != 'last':
             print(f"  - {k}: {v}")
             
     # Perform Aggregation
-    monthly_df = df.groupby(['ts_code', 'month']).agg(agg_dict).reset_index()
-    print(f"{name} monthly shape: {monthly_df.shape}")
+    weekly_df = df.groupby(['ts_code', 'week']).agg(agg_dict).reset_index()
     
-    return monthly_df
+    # Recover trade_date (Use the Friday of that week)
+    weekly_df['trade_date'] = weekly_df['week'].dt.end_time
+    
+    print(f"{name} weekly shape: {weekly_df.shape}")
+    
+    # Drop week column
+    weekly_df = weekly_df.drop(columns=['week'])
+    
+    return weekly_df
 
 def finalize_dataset():
-    print("Finalizing Dataset (Robust Month-Key Join)...")
+    print("Finalizing Dataset (Weekly Frequency)...")
     
     # Define paths
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -123,141 +133,182 @@ def finalize_dataset():
     
     # 1. Load Data
     print("Loading factor files...")
-    if not os.path.exists(fund_path) or not os.path.exists(risk_path):
-        raise FileNotFoundError("Factor files not found. Please run factor construction scripts first.")
-        
-    fund_df = pd.read_parquet(fund_path) # Monthly (Calendar Month End usually)
-    risk_df = pd.read_parquet(risk_path, engine='fastparquet') # Daily
+    # Fundamental Factors (Low Frequency - Monthly/Quarterly)
+    if not os.path.exists(fund_path):
+        raise FileNotFoundError("Fundamental factor file not found.")
+    fund_df = pd.read_parquet(fund_path).reset_index() 
     
+    # Risk/Tech Factors (High Frequency - Daily)
+    if not os.path.exists(risk_path):
+        raise FileNotFoundError("Risk factor file not found.")
+    risk_df = pd.read_parquet(risk_path, engine='fastparquet') 
+    
+    tech_df = None
     if os.path.exists(tech_path):
         print("Loading technical factors...")
-        tech_df = pd.read_parquet(tech_path) # Daily
+        tech_df = pd.read_parquet(tech_path) 
     else:
         print("警告: 未找到技术因子文件。跳过。")
-        tech_df = None
     
-    print(f"基本面因子形状: {fund_df.shape}")
-    print(f"风险因子形状: {risk_df.shape}")
-    if tech_df is not None:
-        print(f"技术因子形状: {tech_df.shape}")
-    
-    # Load Market Cap for Filtering
-    print("正在加载 daily_basic 用于市值过滤 (using fastparquet)...")
-    # We need total_mv. We load daily and will downsample.
-    # Use fastparquet directly to avoid pyarrow issues
+    # Load Market Cap for Filtering (Daily)
+    print("正在加载 daily_basic 用于市值过滤...")
     from data.data_loader import RAW_DATA_DIR, WHITELIST_PATH
     daily_basic_path = os.path.join(RAW_DATA_DIR, 'daily_basic.parquet')
     
     try:
         daily_basic = pd.read_parquet(daily_basic_path, engine='fastparquet', columns=['ts_code', 'trade_date', 'total_mv'])
-    except Exception as e:
-        print(f"fastparquet loading failed: {e}. Trying without columns...")
+    except Exception:
         daily_basic = pd.read_parquet(daily_basic_path, engine='fastparquet')
         daily_basic = daily_basic[['ts_code', 'trade_date', 'total_mv']]
 
-    # Filter by whitelist
+    # Filter daily_basic by whitelist
     print("Filtering daily_basic by whitelist...")
     whitelist = pd.read_parquet(WHITELIST_PATH, columns=['ts_code', 'trade_date'])
-    # Ensure datetime
     daily_basic['trade_date'] = pd.to_datetime(daily_basic['trade_date'])
     whitelist['trade_date'] = pd.to_datetime(whitelist['trade_date'])
-    
     daily_basic = pd.merge(whitelist, daily_basic, on=['ts_code', 'trade_date'], how='inner')
     
-    # 2. Pre-processing & Month Key Creation for Fundamental
-    print("正在为基本面数据创建月份键...")
-    if 'trade_date' not in fund_df.columns:
-        fund_df = fund_df.reset_index()
-    fund_df['trade_date'] = pd.to_datetime(fund_df['trade_date'])
-    fund_df['month'] = fund_df['trade_date'].dt.to_period('M')
+    # Load Adjusted Prices (Daily) for Weekly Open/Close (QFQ)
+    print("Loading daily_adj for Weekly Open/Close (QFQ)...")
+    daily_adj_path = os.path.join(base_dir, 'data', 'data_cleaner', 'daily_adj.parquet')
+    try:
+        daily_adj = pd.read_parquet(daily_adj_path, engine='fastparquet', columns=['ts_code', 'trade_date', 'hfq_open', 'hfq_close', 'adj_factor'])
+    except Exception:
+        daily_adj = pd.read_parquet(daily_adj_path)
+        # Ensure needed columns exist
+        if 'hfq_open' not in daily_adj.columns or 'adj_factor' not in daily_adj.columns:
+             # Fallback: try to load all and see
+             pass
+             
+    # Filter by whitelist
+    daily_adj['trade_date'] = pd.to_datetime(daily_adj['trade_date'])
+    daily_adj = pd.merge(whitelist, daily_adj, on=['ts_code', 'trade_date'], how='inner')
     
-    # 3. Downsample Daily Data to Monthly
-    risk_monthly = downsample_daily_to_monthly(risk_df, name="风险因子")
+    # Calculate QFQ (Pre-Adjusted) Prices
+    # QFQ_t = HFQ_t / Adj_Factor_Last
+    print("Calculating QFQ prices for display...")
+    daily_adj = daily_adj.sort_values(['ts_code', 'trade_date'])
     
-    tech_monthly = None
+    # Get latest adj_factor for each stock
+    # Note: transforming 'last' implies the last date IN THE DATASET. 
+    # This aligns past prices to the price level at the end of 2025.
+    latest_factor = daily_adj.groupby('ts_code')['adj_factor'].transform('last')
+    
+    # Avoid division by zero
+    latest_factor = latest_factor.replace(0, 1)
+    
+    daily_adj['qfq_open'] = daily_adj['hfq_open'] / latest_factor
+    daily_adj['qfq_close'] = daily_adj['hfq_close'] / latest_factor
+    
+    # 2. Downsample High Frequency Data to Weekly
+    # Risk
+    risk_weekly = downsample_daily_to_weekly(risk_df, name="风险因子")
+    
+    # Tech
+    tech_weekly = None
     if tech_df is not None:
-        tech_monthly = downsample_daily_to_monthly(tech_df, name="技术因子")
+        tech_weekly = downsample_daily_to_weekly(tech_df, name="技术因子")
+        
+    # Market Cap (Weekly Last)
+    mv_weekly = downsample_daily_to_weekly(daily_basic, name="市值数据")
     
-    # Market Cap: Take last record per stock-month
-    # We can use the helper or just do it manually since it's simple
-    daily_basic['trade_date'] = pd.to_datetime(daily_basic['trade_date'])
-    daily_basic['month'] = daily_basic['trade_date'].dt.to_period('M')
-    daily_basic = daily_basic.sort_values(['ts_code', 'trade_date'])
-    mv_monthly = daily_basic.groupby(['ts_code', 'month']).last().reset_index()
+    # Prices (Weekly Open/Close QFQ)
+    # Custom downsampling for prices: Open=First, Close=Last
+    print("Downsampling QFQ prices to Weekly...")
+    daily_adj['week'] = daily_adj['trade_date'].dt.to_period('W-FRI')
     
-    # 4. Robust Merge
-    print("正在基于月份键合并数据集...")
+    price_weekly_agg = daily_adj.groupby(['ts_code', 'week']).agg({
+        'qfq_open': 'first',
+        'qfq_close': 'last',
+        'trade_date': 'last' # Use the Friday date
+    }).reset_index()
     
-    # Fundamental (Left) + Risk (Right) on ['ts_code', 'month']
-    # Rename trade_date in Fundamental
-    fund_df = fund_df.rename(columns={'trade_date': 'fund_date'})
+    # Recover trade_date
+    price_weekly_agg['trade_date'] = price_weekly_agg['week'].dt.end_time
+    price_weekly_agg = price_weekly_agg.drop(columns=['week'])
     
-    merged = pd.merge(fund_df, risk_monthly, on=['ts_code', 'month'], how='left')
+    # Rename
+    price_weekly_agg = price_weekly_agg.rename(columns={'qfq_open': 'weekly_open', 'qfq_close': 'weekly_close'})
     
-    # Merge Technical
-    if tech_monthly is not None:
-        # Drop trade_date from tech to avoid collision if it exists in risk (it should be same or close)
-        # But wait, we want to ensure we have a valid trade_date.
-        # Risk monthly has 'trade_date'. Tech monthly has 'trade_date'.
-        # They should be the same (end of month).
-        # We can drop one.
-        tech_monthly = tech_monthly.drop(columns=['trade_date'])
-        merged = pd.merge(merged, tech_monthly, on=['ts_code', 'month'], how='left')
+    # 3. Merge Strategy (Left = Weekly Backbone, Right = Low Freq Fund via merge_asof)
+    print("正在合并数据集 (Base: Weekly Risk)...")
     
-    # Merge Market Cap
-    merged = pd.merge(merged, mv_monthly[['ts_code', 'month', 'total_mv']], on=['ts_code', 'month'], how='left')
+    # Ensure all trade_dates are datetime
+    risk_weekly['trade_date'] = pd.to_datetime(risk_weekly['trade_date'])
+    fund_df['trade_date'] = pd.to_datetime(fund_df['trade_date'])
     
-    print(f"过滤前合并数据形状: {merged.shape}")
+    # Sort for merge_asof
+    risk_weekly = risk_weekly.sort_values('trade_date')
+    fund_df = fund_df.sort_values('trade_date')
     
-    # 5. Data Enrichment
+    # Rename Fund's trade_date to avoid collision/confusion, or keep it as match key
+    # merge_asof on 'trade_date'.
+    # We want to attach Fund Data to Risk Data.
+    # Note: merge_asof requires sorting.
+    
+    print("  Merging Fundamental Factors...")
+    # Fundamental usually has 'ret' (monthly return). We probably want to keep that? 
+    # Or rely on weekly return calculated from price?
+    # Let's assume we merge everything.
+    merged = pd.merge_asof(
+        risk_weekly, 
+        fund_df, 
+        on='trade_date', 
+        by='ts_code', 
+        direction='backward',
+        suffixes=('', '_fund') # If collision
+    )
+    
+    if tech_weekly is not None:
+        print("  Merging Technical Factors...")
+        # Tech matches Risk exactly on weekly grid (same aggregation)
+        # So we can use regular merge on [ts_code, trade_date]
+        tech_weekly['trade_date'] = pd.to_datetime(tech_weekly['trade_date'])
+        merged = pd.merge(merged, tech_weekly, on=['ts_code', 'trade_date'], how='left')
+        
+    print("  Merging Market Cap...")
+    mv_weekly['trade_date'] = pd.to_datetime(mv_weekly['trade_date'])
+    merged = pd.merge(merged, mv_weekly[['ts_code', 'trade_date', 'total_mv']], on=['ts_code', 'trade_date'], how='left')
+    
+    print("  Merging Weekly Prices...")
+    price_weekly_agg['trade_date'] = pd.to_datetime(price_weekly_agg['trade_date'])
+    merged = pd.merge(merged, price_weekly_agg[['ts_code', 'trade_date', 'weekly_open', 'weekly_close']], on=['ts_code', 'trade_date'], how='left')
+    
+    print(f"合并后初步形状: {merged.shape}")
+    
+    # 4. Data Enrichment
     print("正在计算 Roe...")
-    # Roe = Ep / Bm
     if 'Ep' in merged.columns and 'Bm' in merged.columns:
         merged['Roe'] = merged['Ep'] / merged['Bm']
         merged['Roe'] = merged['Roe'].replace([np.inf, -np.inf], np.nan)
     else:
         print("警告: Ep 或 Bm 缺失。跳过 Roe 计算。")
         merged['Roe'] = np.nan
-    
-    # 6. Universe Filtering
+        
+    # 5. Universe Filtering
     print("正在应用股票池过滤 (剔除市值后 30%)...")
-    
-    merged = merged.dropna(subset=['trade_date'])
-    
     merged = Universe.apply_market_cap_filter(merged, threshold_percent=0.3)
     
-    print(f"过滤后合并数据形状: {merged.shape}")
-    
-    # 7. Target Generation
+    # 6. Target Generation
     print("正在创建 next_ret...")
     merged = merged.sort_values(['ts_code', 'trade_date'])
     
-    # Shift ret backwards by 1
-    # Note: 'ret' here comes from Fundamental (monthly return).
-    merged['next_ret'] = merged.groupby('ts_code')['ret'].shift(-1)
+    # Calculate Weekly Return for next period
+    # If 'ret' exists (from Risk/Tech aggregation), we can shift it.
+    # 'ret' in Risk usually is daily return. We aggregated it to 'sum' (approx weekly return).
+    if 'ret' in merged.columns:
+        merged['next_ret'] = merged.groupby('ts_code')['ret'].shift(-1)
+    else:
+        print("警告: 未找到 'ret' 列，无法计算 next_ret。")
     
-    # 8. Final Cleanup
+    # 7. Final Cleanup
     print("正在完成...")
-    # Drop rows where next_ret is NaN
     merged = merged.dropna(subset=['next_ret'])
-    
-    # Drop auxiliary columns
-    # Drop auxiliary columns
-    cols_to_drop = ['month', 'fund_date', 'total_mv']
-    # Ensure we drop them even if they are not in columns (ignore errors)
-    merged = merged.drop(columns=cols_to_drop, errors='ignore')
-    
-    # Verify month is gone
-    if 'month' in merged.columns:
-        print("Warning: 'month' column still present. Forcing drop.")
-        del merged['month']
     
     # Set index
     merged = merged.set_index(['trade_date', 'ts_code']).sort_index()
     
     print(f"最终形状: {merged.shape}")
-    print("列:", merged.columns.tolist())
-    
     print(f"正在保存至 {output_path}...")
     merged.to_parquet(output_path)
     print("完成。")

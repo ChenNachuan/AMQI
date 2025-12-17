@@ -12,8 +12,8 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from data.data_loader.utils import init_tushare_api, save_to_parquet, _get_raw_data_dir
 
 # Configuration
-START_DATE = '20000101'
-END_DATE = pd.Timestamp.now().strftime('%Y%m%d')
+START_DATE = '20230101'
+END_DATE = '20251215'
 
 # Key Indices
 KEY_INDICES = ['000300.SH', '000905.SH']

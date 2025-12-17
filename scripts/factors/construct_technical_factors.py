@@ -183,32 +183,33 @@ def construct_technical_factors():
     # Merge on index
     tech_df = pd.concat(results, axis=1)
     
-    # 4. Resample to Monthly (End of Month)
-    print("Resampling to monthly...")
+    # 4. Resample to Weekly (Friday)
+    print("Resampling to weekly (Friday)...")
     tech_df = tech_df.reset_index()
-    tech_df['month'] = tech_df['trade_date'].dt.to_period('M')
+    tech_df['week'] = tech_df['trade_date'].dt.to_period('W-FRI')
     
-    # We take the last value of the month for each stock
-    monthly_tech = tech_df.groupby(['ts_code', 'month']).last().reset_index()
+    # We take the last value of the week for each stock
+    weekly_tech = tech_df.groupby(['ts_code', 'week']).last().reset_index()
     
-    # Restore trade_date (which is the last date of the month in the data)
-    # Actually groupby last() keeps the columns. trade_date will be the date of the last record.
+    # Restore trade_date to the end of the week (Friday)
+    # Note: .last() on groupby keeps the original columns if they were not keys, 
+    # and since we grouped by [ts_code, week], trade_date (the column) will be the last date in that group.
     
-    # Drop month column
-    monthly_tech = monthly_tech.drop(columns=['month'])
+    # Drop week column
+    weekly_tech = weekly_tech.drop(columns=['week'])
     
     # Set index
-    monthly_tech = monthly_tech.set_index(['trade_date', 'ts_code']).sort_index()
+    weekly_tech = weekly_tech.set_index(['trade_date', 'ts_code']).sort_index()
     
     # 5. Save
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     output_path = os.path.join(base_dir, 'data', 'factors', 'technical_factors.parquet')
     
     print(f"Saving to {output_path}...")
-    monthly_tech.to_parquet(output_path)
+    weekly_tech.to_parquet(output_path)
     
     print("Done.")
-    print(monthly_tech.head())
+    print(weekly_tech.head())
 
 if __name__ == "__main__":
     construct_technical_factors()

@@ -15,8 +15,8 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from data.data_loader.utils import init_tushare_api, save_to_parquet
 
 # 默认时间范围 (2005-01-01 至今)
-START_DATE = '20050101'
-END_DATE = datetime.datetime.now().strftime('%Y%m%d')
+START_DATE = '20230101'
+END_DATE = '20251215'
 
 def download_daily_by_date(start_date=START_DATE, end_date=END_DATE):
     """

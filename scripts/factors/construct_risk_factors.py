@@ -137,14 +137,38 @@ def run_risk_factors():
     final_df = pd.concat(dfs, axis=1)
     
     # Remove duplicate columns if any (from concat axis=1 with same index)
+    # Remove duplicate columns if any (from concat axis=1 with same index)
     final_df = final_df.loc[:, ~final_df.columns.duplicated()]
     
-    print(f"Final shape: {final_df.shape}")
-    print("Columns:", final_df.columns.tolist())
+    print(f"Daily shape: {final_df.shape}")
+    
+    # 6b. Resample to Weekly (Friday)
+    print("Resampling to weekly (Friday)...")
+    final_df = final_df.reset_index()
+    if 'trade_date' not in final_df.columns:
+         # Depending on how Beta etc return data. Usually they return MultiIndex.
+         # If reset_index didn't find trade_date, implies it was column.
+         pass
+         
+    final_df['trade_date'] = pd.to_datetime(final_df['trade_date'])
+    final_df['week'] = final_df['trade_date'].dt.to_period('W-FRI')
+    
+    # Aggregation rules: Last for state variables
+    # Risk factors like Beta, IVFF are usually state variables (updated daily).
+    # Taking the end-of-week value is standard downsampling.
+    weekly_df = final_df.groupby(['ts_code', 'week']).last().reset_index()
+    
+    weekly_df = weekly_df.drop(columns=['week'])
+    
+    # Set index
+    weekly_df = weekly_df.set_index(['trade_date', 'ts_code']).sort_index()
+    
+    print(f"Weekly shape: {weekly_df.shape}")
+    print("Columns:", weekly_df.columns.tolist())
     
     # 7. Save
     print(f"Saving to {output_path}...")
-    final_df.to_parquet(output_path, engine='fastparquet')
+    weekly_df.to_parquet(output_path, engine='fastparquet')
     print("Done.")
 
 if __name__ == "__main__":
